@@ -34,12 +34,12 @@ jobs:
         run: gradle --no-daemon assembleRelease
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/release/app-release.apk Ritmo-v2.0.1.apk
+        run: cp app/build/outputs/apk/release/app-release.apk Ritmo-v2.1.0.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Ritmo-v2.0.1-APK
-          path: Ritmo-v2.0.1.apk
+          name: Ritmo-v2.1.0-APK
+          path: Ritmo-v2.1.0.apk
           if-no-files-found: error
           retention-days: 30

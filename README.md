@@ -1,43 +1,59 @@
-# Ritmo 2.0.1
+# Ritmo 2.1.0 — Android nativo
 
-Build de correção de estabilidade da v2.0.0.
+Ritmo é um app Android de rotina e produtividade feito em Java nativo, offline-first e sem WebView.
 
-# Ritmo — app Android nativo
+## Destaques da 2.1.0
 
-Ritmo é um aplicativo Android de rotina e produtividade feito em Java nativo, sem WebView e sem depender de servidor para funcionar.
+- Exclusão visível dentro do editor de tarefa, meta, hábito e projeto.
+- Editor de tarefa mais compacto, com campos em duas colunas quando há espaço.
+- Pesquisa de tarefas por título, descrição, categoria ou projeto.
+- Filtros por estado e categoria.
+- Projetos completos com prazo, descrição, progresso e tarefas vinculadas.
+- Subtarefas com marcação individual.
+- Prioridade **Automática**, calculada pelo prazo da tarefa.
+- Kanban com arrastar e soltar entre A fazer, Em andamento e Concluído.
+- Planejamento semanal com arrastar tarefas de um dia para outro.
+- Visão semanal redesenhada para leitura rápida da carga de cada dia.
+- Estatísticas mais úteis: taxa de conclusão, atrasadas, melhor dia e tempo concluído.
+- Notificações com ações rápidas: **Concluir** e **Adiar 10 min**.
+- Widget de tela inicial com eficiência e pendências do dia.
+- Top bar adaptativa: título/subtítulo mudam conforme a tela.
+- Integração visual das barras de status/navegação com tema claro/escuro.
+- Persistência offline e migração dos dados das versões 2.0.x.
 
-## O que já está implementado
+## Versão Android
 
-- Dashboard **Hoje** com eficiência diária
-- Tarefas com data, horário, prioridade, categoria e duração
-- Marcar tarefa como concluída e reabrir
-- Filtros: todas, hoje, pendentes e concluídas
-- Agenda diária
-- Kanban: **A fazer → Em andamento → Concluído**
-- Metas com progresso
-- Rotinas recorrentes
-- Insights de carga de trabalho e organização
-- Cadastro de tarefa, compromisso, meta e rotina
-- Exclusão por toque longo
-- Armazenamento 100% local usando SharedPreferences + JSON
-- Sem login obrigatório
-- Sem internet para o uso normal
+- `versionCode 4`
+- `versionName 2.1.0`
+- `minSdk 24`
+- `targetSdk 35`
+- Java 17
 
-## Estrutura
+## Build na nuvem
 
-- `app/src/main/java/com/ritmo/mobile/MainActivity.java` — interface e regras do app
-- `app/src/main/java/com/ritmo/mobile/Store.java` — persistência local
-- `.github/workflows/build-apk.yml` — compilação automática do APK na nuvem
+O workflow `.github/workflows/build-apk.yml` gera um APK release assinado sempre que houver `push` na `main` ou uma tag `v*`.
 
-## Gerar o APK sem computador
+Artifact esperado:
 
-O projeto já contém um workflow do GitHub Actions. Portanto, o APK pode ser compilado na nuvem:
+`Ritmo-v2.1.0-APK`
 
-1. Crie um repositório no GitHub.
-2. Envie o conteúdo deste projeto para a raiz do repositório.
-3. Vá em **Actions → Build Ritmo APK → Run workflow**.
-4. Ao finalizar, abra a execução.
-5. Em **Artifacts**, baixe `Ritmo-APK`.
-6. Extraia o ZIP no celular e instale `app-debug.apk`.
+Arquivo:
 
-O APK gerado é uma build de debug, adequada para uso pessoal e testes.
+`Ritmo-v2.1.0.apk`
+
+## Widget
+
+Após instalar a 2.1.0, abra o seletor de widgets do launcher Android e procure por **Ritmo**. O widget exibe a eficiência do dia, tarefas concluídas e pendentes.
+
+## Estrutura principal
+
+- `MainActivity.java` — interface, navegação e ações.
+- `Store.java` — persistência, projetos, subtarefas e métricas.
+- `ReminderReceiver.java` — notificações e ações rápidas.
+- `ReminderScheduler.java` — agendamento de lembretes.
+- `RitmoWidgetProvider.java` — widget da tela inicial.
+- `WeeklyBarChart.java` — gráfico semanal nativo.
+
+## Assinatura
+
+A pasta `signing/` contém a chave usada nas builds 2.x. Preserve essa chave para que o Android aceite versões futuras como atualização do mesmo app. Mantenha o repositório privado e não publique a chave.

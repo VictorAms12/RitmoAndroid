@@ -18,10 +18,15 @@ public class ReminderScheduler {
             if (due == null) return;
             long when = due.getTime() - task.reminderMinutes * 60_000L;
             if (when <= System.currentTimeMillis()) return;
-            AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-            if (am == null) return;
-            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pending(context, task.id, task.title));
+            scheduleAt(context, task, when);
         } catch (Exception ignored) { }
+    }
+
+    public static void scheduleAt(Context context, Store.Task task, long when) {
+        if (when <= System.currentTimeMillis()) return;
+        AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (am == null) return;
+        am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pending(context, task.id, task.title));
     }
 
     public static void cancel(Context context, long taskId) {
@@ -35,6 +40,7 @@ public class ReminderScheduler {
 
     private static PendingIntent pending(Context context, long id, String title) {
         Intent i = new Intent(context, ReminderReceiver.class);
+        i.setAction(ReminderReceiver.ACTION_REMIND);
         i.putExtra("taskId", id);
         i.putExtra("title", title);
         int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;

@@ -1,36 +1,31 @@
 # Versionamento do Ritmo
 
-O projeto usa dois números no arquivo `app/build.gradle`:
+O projeto usa versionamento semântico:
 
-- `versionCode`: número inteiro interno do Android. Precisa aumentar a cada APK publicado.
-- `versionName`: versão visível, usando SemVer (`MAJOR.MINOR.PATCH`).
+- PATCH: correções pequenas, ex. `2.1.0 → 2.1.1`.
+- MINOR: novos recursos compatíveis, ex. `2.1.1 → 2.2.0`.
+- MAJOR: mudanças grandes ou incompatíveis, ex. `2.x → 3.0.0`.
 
-## Regra recomendada
-
-- PATCH: correção de bug. Ex.: `2.0.0` → `2.0.1`.
-- MINOR: recurso novo compatível. Ex.: `2.0.1` → `2.1.0`.
-- MAJOR: mudança grande no produto. Ex.: `2.1.0` → `3.0.0`.
-
-Para qualquer nova versão, aumente também `versionCode`:
+A 2.1.0 usa:
 
 ```gradle
-versionCode 3
-versionName '2.0.1'
+versionCode 4
+versionName '2.1.0'
 ```
 
-## Tags Git
+Em toda nova build instalável, aumente o `versionCode` pelo menos em 1.
 
-Depois de enviar uma versão estável:
+Fluxo recomendado:
 
 ```bash
-git tag -a v2.0.0 -m "Ritmo 2.0.0"
-git push origin v2.0.0
+git add .
+git commit -m "fix: descrição"   # ou feat:, refactor:, ui:
+git push origin main
 ```
 
-Isso cria um marco fácil de recuperar no histórico.
+Após validar a build:
 
-## Assinatura
-
-A pasta `signing/` contém a chave usada para assinar o APK. **Não apague nem troque essa chave.**
-
-Como a chave está dentro do projeto, mantenha o repositório **privado**. Se ela for perdida, um APK futuro não poderá atualizar o app instalado com a assinatura anterior.
+```bash
+git tag -a v2.1.0 -m "Ritmo 2.1.0"
+git push origin v2.1.0
+```

@@ -1,53 +1,59 @@
-# 2.0.1
-
-- Corrige inicialização instável em alguns aparelhos.
-- Inicialização tolerante a falhas: permissões e reagendamento de lembretes são adiados até a UI abrir.
-- Tratamento mais seguro de barras do sistema no Android 15+.
-- Sanitização de dados migrados da v1.
-- Tela de recuperação em vez de fechar silenciosamente quando ocorre erro durante a montagem da interface.
-- Registro local do último crash para diagnóstico.
-
 # Changelog
 
-## 2.0.0 — 2026-08-12
+## 2.1.0 — 2026-08-11
 
-### Interface
-- UI refeita para navegação rápida em uma mão.
-- Ícones vetoriais nativos no menu principal.
-- Tema claro e escuro persistentes.
-- Barra de status e barra de navegação integradas ao tema do app.
-- Layout centralizado em tablets e adaptado a telas maiores.
-- Cards, chips e hierarquia visual mais compactos.
-
-### Agenda e planejamento
-- Calendário mensal interativo.
-- Planejamento semanal com carga por dia.
-- Seleção de dia e criação rápida de tarefa naquele dia.
-- Agenda diária integrada às tarefas.
+### UX e correções
+- Botão **Excluir** visível no editor de tarefas.
+- Exclusão também disponível diretamente nos editores de metas, hábitos e projetos.
+- Formulários compactados para reduzir rolagem e melhorar uso em telas pequenas.
+- Barra superior agora se adapta à tela atual.
+- Ajustes de integração com status bar e navigation bar em tema claro/escuro.
+- Botão de opções `⋮` nos cards de tarefa e Kanban.
 
 ### Tarefas
-- Edição completa de tarefas.
-- Descrição/observações.
-- Recorrência diária, dias úteis, semanal ou mensal.
-- Lembretes: na hora, 10 min, 30 min, 1 h ou 1 dia antes.
-- Lembretes reaplicados após reiniciar o aparelho.
-- Mudança de status pelo Kanban.
-- Histórico de conclusão preservado ao limpar concluídas.
+- Busca instantânea por título, descrição, categoria ou projeto.
+- Filtros de estado e categoria.
+- Prioridade automática baseada na proximidade do prazo.
+- Subtarefas com criação, conclusão e exclusão.
+- Indicador de progresso das subtarefas nos cards.
 
-### Hábitos e metas
-- Hábitos com frequência e duração.
-- Marcação diária de hábito.
-- Sequência (streak) calculada automaticamente.
-- Edição de hábitos.
-- Metas com prazo, progresso e edição.
+### Projetos
+- Nova área de Projetos.
+- Nome, descrição e prazo.
+- Tarefas vinculadas ao projeto.
+- Progresso automático calculado pelas tarefas concluídas.
+- Atalho do projeto para abrir suas tarefas.
+
+### Kanban
+- Arrastar e soltar cards entre A fazer, Em andamento e Concluído.
+- Menu de ações separado do gesto de arrastar.
+- Progresso de subtarefas dentro dos cards.
+
+### Agenda
+- Planejamento semanal redesenhado em uma lista compacta de sete dias.
+- Carga diária, quantidade de tarefas e percentual de conclusão por dia.
+- Reagendamento por arrastar uma tarefa e soltar em outro dia da semana.
+
+### Notificações
+- Ação rápida **Concluir**.
+- Ação rápida **Adiar 10 min**.
+
+### Widget
+- Widget de tela inicial com eficiência diária e contagem de pendências.
 
 ### Estatísticas
-- Gráfico nativo dos últimos 7 dias.
-- Tempo concluído na semana.
-- Distribuição de tempo por categoria.
-- Melhor sequência de hábito.
-- Insights de carga, prioridades e fila pendente.
+- Taxa de conclusão dos últimos sete dias.
+- Quantidade de tarefas atrasadas.
+- Melhor dia da semana.
+- Tempo concluído e distribuição por categoria.
 
-### Distribuição
-- APK de release assinado com uma chave estável do projeto.
-- O mesmo APK pode ser atualizado por versões futuras sem reinstalar, desde que a chave de `signing/ritmo.keystore` seja preservada.
+### Dados
+- Schema local atualizado para v3.
+- Migração compatível com dados das versões 2.0.x.
+
+## 2.0.1
+- Correções de estabilidade de inicialização.
+- Modo de recuperação e sanitização de dados migrados.
+
+## 2.0.0
+- Calendário mensal, agenda semanal, recorrência, lembretes, hábitos, metas e estatísticas iniciais.
