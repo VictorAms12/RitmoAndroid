@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
+import android.app.Dialog;
 import android.app.TimePickerDialog;
 import android.content.pm.PackageManager;
 import android.content.Intent;
@@ -15,6 +16,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
@@ -27,6 +29,7 @@ import android.view.DragEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
+import android.view.Window;
 import android.view.WindowInsetsController;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -84,7 +87,7 @@ public class MainActivity extends Activity {
         installCrashRecorder();
         SharedPreferences uiPrefs = getSharedPreferences("ritmo_ui", MODE_PRIVATE);
         String savedThemeMode = uiPrefs.getString("theme_mode", null);
-        if (savedThemeMode == null) savedThemeMode = uiPrefs.contains("dark") ? (uiPrefs.getBoolean("dark", false) ? "dark" : "light") : "system";
+        if (savedThemeMode == null) savedThemeMode = uiPrefs.contains("dark") ? (uiPrefs.getBoolean("dark", false) ? "dark" : "light") : "dark";
         themeMode = savedThemeMode;
         darkMode = resolveDarkMode(themeMode);
         reduceMotion = uiPrefs.getBoolean("reduce_motion", false);
@@ -107,8 +110,7 @@ public class MainActivity extends Activity {
                     if (content != null) {
                         content.postDelayed(() -> {
                             try { requestNotificationPermissionIfNeeded(); } catch (Throwable ignored) { }
-                            try { ReminderScheduler.rescheduleAll(this, store); } catch (Throwable ignored) { }
-                            try { RoutineReminderScheduler.rescheduleAll(this, store); } catch (Throwable ignored) { }
+                            try { rescheduleRemindersIfNeeded(); } catch (Throwable ignored) { }
                         }, 700);
                     }
                 } catch (Throwable e) {
@@ -128,12 +130,17 @@ public class MainActivity extends Activity {
         try {
             if (store != null) {
                 store.normalizeRecurringTasks();
-                if (getSharedPreferences("ritmo_planner_settings", MODE_PRIVATE).getBoolean("autoReplanOverdue", false)) {
-                    int moved = store.replanOverdueFlexibleToToday();
-                    if (moved > 0) {
-                        SmartPlanner.Result result = SmartPlanner.plan(store, plannerSettings());
-                        SmartPlanner.apply(this, store, result);
-                        try { ReminderScheduler.rescheduleAll(this, store); } catch (Throwable ignored) { }
+                SharedPreferences plannerPrefs = getSharedPreferences("ritmo_planner_settings", MODE_PRIVATE);
+                if (plannerPrefs.getBoolean("autoReplanOverdue", false)) {
+                    String lastRun = plannerPrefs.getString("last_auto_replan_date", "");
+                    if (!Store.today().equals(lastRun)) {
+                        int moved = store.replanOverdueFlexibleToToday();
+                        if (moved > 0) {
+                            SmartPlanner.Result result = SmartPlanner.plan(store, plannerSettings());
+                            SmartPlanner.apply(this, store, result);
+                            try { ReminderScheduler.rescheduleAll(this, store); } catch (Throwable ignored) { }
+                        }
+                        plannerPrefs.edit().putString("last_auto_replan_date", Store.today()).apply();
                     }
                 }
                 if (content != null) showPage(currentPage);
@@ -193,13 +200,26 @@ public class MainActivity extends Activity {
             retry.setOnClickListener(v -> recreate());
             root.addView(retry, marginBottom(dp(10)));
 
+            Button copy = secondaryButton("Copiar diagnóstico técnico");
+            copy.setOnClickListener(v -> {
+                try {
+                    String full = getSharedPreferences("ritmo_diagnostics", MODE_PRIVATE).getString("last_crash", detail);
+                    android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                    if (cm != null) cm.setPrimaryClip(ClipData.newPlainText("Diagnóstico Ritmo", full));
+                    Toast.makeText(this, "Diagnóstico copiado.", Toast.LENGTH_SHORT).show();
+                } catch (Throwable ignored) { }
+            });
+            root.addView(copy, marginBottom(dp(10)));
+
             Button reset = new Button(this);
             reset.setText("Limpar dados locais e reiniciar");
             reset.setAllCaps(false);
-            reset.setOnClickListener(v -> {
-                getSharedPreferences("ritmo_prefs", MODE_PRIVATE).edit().clear().apply();
-                recreate();
-            });
+            reset.setOnClickListener(v -> new AlertDialog.Builder(this)
+                    .setTitle("Apagar os dados locais?")
+                    .setMessage("Use apenas se o Ritmo não conseguir recuperar a base. Tarefas, metas e hábitos serão removidos deste aparelho.")
+                    .setNegativeButton("Cancelar", null)
+                    .setPositiveButton("Apagar", (d,w) -> { getSharedPreferences("ritmo_prefs", MODE_PRIVATE).edit().clear().apply(); recreate(); })
+                    .show());
             root.addView(reset);
 
             ScrollView scroll = new ScrollView(this);
@@ -222,37 +242,39 @@ public class MainActivity extends Activity {
 
     private void applyPalette() {
         if (darkMode) {
-            BG = Color.rgb(15, 23, 42);          // #0F172A
-            PANEL = Color.rgb(30, 41, 59);       // #1E293B
-            PANEL2 = Color.rgb(24, 33, 50);
-            TEXT = Color.rgb(248, 250, 252);
-            MUTED = Color.rgb(148, 163, 184);
-            LINE = Color.rgb(51, 65, 85);
-            BRAND = Color.rgb(129, 140, 248);    // Indigo 400
-            BRAND_DARK = Color.rgb(79, 70, 229);
-            BRAND_SOFT = Color.rgb(49, 46, 89);
-            ACCENT = Color.rgb(45, 212, 191);    // Mint
+            // Verde profundo inspirado nas versões iniciais do Ritmo: baixa fadiga,
+            // alto contraste e elevação por tom em vez de preto absoluto.
+            BG = Color.rgb(7, 26, 20);           // #071A14
+            PANEL = Color.rgb(13, 38, 30);       // #0D261E
+            PANEL2 = Color.rgb(18, 51, 40);      // #123328
+            TEXT = Color.rgb(240, 248, 244);
+            MUTED = Color.rgb(145, 170, 160);
+            LINE = Color.rgb(29, 73, 58);
+            BRAND = Color.rgb(66, 211, 155);     // verde menta principal
+            BRAND_DARK = Color.rgb(32, 168, 115);
+            BRAND_SOFT = Color.rgb(21, 63, 49);
+            ACCENT = Color.rgb(97, 231, 178);
             MINT = ACCENT;
-            GOOD = Color.rgb(52, 211, 153);
-            WARN = Color.rgb(251, 191, 36);
-            BAD = Color.rgb(251, 113, 133);
-            NAV = Color.rgb(17, 24, 39);
+            GOOD = Color.rgb(73, 214, 156);
+            WARN = Color.rgb(229, 178, 81);
+            BAD = Color.rgb(240, 125, 125);
+            NAV = Color.rgb(8, 30, 23);
         } else {
-            BG = Color.rgb(248, 249, 250);        // #F8F9FA
+            BG = Color.rgb(245, 248, 246);        // #F5F8F6
             PANEL = Color.WHITE;
-            PANEL2 = Color.rgb(241, 245, 249);
-            TEXT = Color.rgb(17, 24, 39);         // #111827
-            MUTED = Color.rgb(100, 116, 139);
-            LINE = Color.rgb(226, 232, 240);
-            BRAND = Color.rgb(99, 102, 241);      // Indigo 500
-            BRAND_DARK = Color.rgb(79, 70, 229);
-            BRAND_SOFT = Color.rgb(238, 242, 255);
-            ACCENT = Color.rgb(13, 148, 136);     // Teal 600
-            MINT = Color.rgb(16, 185, 129);
-            GOOD = Color.rgb(16, 185, 129);
-            WARN = Color.rgb(217, 119, 6);
-            BAD = Color.rgb(225, 29, 72);
-            NAV = Color.WHITE;
+            PANEL2 = Color.rgb(234, 243, 239);
+            TEXT = Color.rgb(16, 33, 26);
+            MUTED = Color.rgb(97, 115, 107);
+            LINE = Color.rgb(220, 232, 226);
+            BRAND = Color.rgb(20, 122, 90);
+            BRAND_DARK = Color.rgb(15, 97, 72);
+            BRAND_SOFT = Color.rgb(223, 243, 234);
+            ACCENT = Color.rgb(44, 182, 125);
+            MINT = ACCENT;
+            GOOD = Color.rgb(31, 157, 106);
+            WARN = Color.rgb(212, 154, 42);
+            BAD = Color.rgb(217, 92, 92);
+            NAV = Color.rgb(249, 251, 250);
         }
     }
 
@@ -279,6 +301,15 @@ public class MainActivity extends Activity {
                 getWindow().getDecorView().setSystemUiVisibility(flags);
             }
         } catch (Throwable ignored) { }
+    }
+
+    private void rescheduleRemindersIfNeeded() {
+        SharedPreferences runtime = getSharedPreferences("ritmo_runtime", MODE_PRIVATE);
+        String marker = Store.today() + "|2.4.0";
+        if (marker.equals(runtime.getString("last_reminder_reschedule", ""))) return;
+        try { ReminderScheduler.rescheduleAll(this, store); } catch (Throwable ignored) { }
+        try { RoutineReminderScheduler.rescheduleAll(this, store); } catch (Throwable ignored) { }
+        runtime.edit().putString("last_reminder_reschedule", marker).apply();
     }
 
     private void requestNotificationPermissionIfNeeded() {
@@ -363,7 +394,7 @@ public class MainActivity extends Activity {
         titleBox.addView(topSubtitleView);
         bar.addView(titleBox, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        TextView version = text("2.3", 10, BRAND, true);
+        TextView version = text("2.4", 10, BRAND, true);
         version.setPadding(dp(9), dp(5), dp(9), dp(5));
         version.setGravity(Gravity.CENTER);
         version.setBackground(rounded(BRAND_SOFT, 99, false));
@@ -525,6 +556,9 @@ public class MainActivity extends Activity {
         }));
         body.addView(focusQuickCard());
 
+        body.addView(sectionHeader("Fechamento do dia", null, null));
+        body.addView(dayCloseCard());
+
         body.addView(sectionHeader("Hábitos de hoje", "Gerenciar", v -> {
             organizeTab = "habits";
             showPage("organize");
@@ -550,8 +584,8 @@ public class MainActivity extends Activity {
         hero.setOrientation(LinearLayout.VERTICAL);
         hero.setPadding(dp(18), dp(18), dp(18), dp(18));
         GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[]{darkMode ? Color.rgb(49, 46, 129) : Color.rgb(79, 70, 229),
-                        darkMode ? Color.rgb(30, 41, 90) : Color.rgb(99, 102, 241)});
+                new int[]{darkMode ? Color.rgb(10, 72, 52) : Color.rgb(15, 112, 80),
+                        darkMode ? Color.rgb(8, 48, 36) : Color.rgb(32, 154, 108)});
         bg.setCornerRadius(dp(22));
         hero.setBackground(bg);
         hero.setElevation(darkMode ? dp(1) : dp(5));
@@ -560,14 +594,14 @@ public class MainActivity extends Activity {
         top.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout intro = new LinearLayout(this);
         intro.setOrientation(LinearLayout.VERTICAL);
-        intro.addView(text("HOJE · " + weekdayShort(Store.today()), 10, Color.rgb(199, 210, 254), true));
+        intro.addView(text("HOJE · " + weekdayShort(Store.today()), 10, Color.rgb(190, 241, 219), true));
         String name = userName();
         int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
         String greeting = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
         TextView title = text(name.isEmpty() ? greeting + ". Qual é o seu ritmo?" : greeting + ", " + name + ".", isTablet() ? 28 : 24, Color.WHITE, true);
         title.setPadding(0, dp(4), 0, dp(3));
         intro.addView(title);
-        intro.addView(text("Progresso é consistência, não perfeição.", 11, Color.rgb(224, 231, 255), false));
+        intro.addView(text("Progresso é consistência, não perfeição.", 11, Color.rgb(218, 247, 234), false));
         top.addView(intro, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         int score = store.combinedDayScore(Store.today());
@@ -575,7 +609,7 @@ public class MainActivity extends Activity {
         ring.setValue(score);
         ring.setContentDescription("Progresso de hoje: " + score + "%");
         ring.setStrokeDp(6f);
-        ring.setColors(Color.rgb(45, 212, 191), Color.argb(55,255,255,255), Color.WHITE);
+        ring.setColors(Color.rgb(110, 244, 187), Color.argb(55,255,255,255), Color.WHITE);
         top.addView(ring, new LinearLayout.LayoutParams(dp(88), dp(88)));
         hero.addView(top);
 
@@ -799,6 +833,96 @@ public class MainActivity extends Activity {
         makePressable(row);
         row.setOnLongClickListener(v -> { confirmDeleteRoutine(r); return true; });
         return row;
+    }
+
+    private View dayCloseCard() {
+        LinearLayout card = cardBox(); card.setOrientation(LinearLayout.VERTICAL); card.setPadding(dp(15), dp(14), dp(15), dp(14));
+        Store.DayReview review = store.findDayReview(Store.today());
+        int done = store.doneTasksOn(Store.today());
+        int pending = store.openTasksOn(Store.today());
+        int focus = store.focusMinutesOn(Store.today());
+
+        LinearLayout top = new LinearLayout(this); top.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView icon = new ImageView(this); icon.setImageResource(R.drawable.ic_check); icon.setColorFilter(review == null ? BRAND : GOOD);
+        icon.setPadding(dp(9),dp(9),dp(9),dp(9)); icon.setBackground(rounded(BRAND_SOFT, 14, false));
+        top.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        LinearLayout info = new LinearLayout(this); info.setOrientation(LinearLayout.VERTICAL); info.setPadding(dp(11),0,dp(8),0);
+        info.addView(text(review == null ? "Como foi seu dia?" : "Dia revisado · " + moodLabel(review.mood), 14, TEXT, true));
+        info.addView(text(done + " concluída(s) · " + pending + " pendente(s) · " + humanMinutes(focus) + " de foco", 10, MUTED, false));
+        top.addView(info, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Button reviewButton = secondaryButton(review == null ? "Encerrar" : "Rever");
+        reviewButton.setOnClickListener(v -> showDayReviewDialog());
+        top.addView(reviewButton, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44)));
+        card.addView(top);
+
+        if (review != null && review.note != null && !review.note.trim().isEmpty()) {
+            TextView note = text("“" + review.note.trim() + "”", 10, MUTED, false); note.setPadding(dp(3),dp(11),dp(3),0); card.addView(note);
+        } else if (pending > 0) {
+            TextView hint = text("Finalize o dia e decida conscientemente o que realmente merece ir para amanhã. O Ritmo só move tarefas flexíveis.", 10, MUTED, false);
+            hint.setPadding(dp(3),dp(11),dp(3),0); card.addView(hint);
+        }
+        return card;
+    }
+
+    private void showDayReviewDialog() {
+        String today = Store.today();
+        Store.DayReview old = store.findDayReview(today);
+        LinearLayout form = dialogForm();
+        Spinner mood = spinner(new String[]{"1 · Dia pesado","2 · Abaixo do esperado","3 · Dia normal","4 · Bom dia","5 · Excelente"});
+        EditText note = inputMulti("O que funcionou? O que você quer ajustar amanhã?");
+        CheckBox move = new CheckBox(this); move.setText("Levar tarefas flexíveis pendentes para amanhã"); move.setTextColor(TEXT); move.setTextSize(12); move.setButtonTintList(ColorStateList.valueOf(BRAND));
+        move.setChecked(store.openTasksOn(today) > 0);
+        form.addView(fieldLabel("COMO FOI O DIA?")); form.addView(mood);
+        form.addView(fieldLabel("NOTA RÁPIDA")); form.addView(note);
+        form.addView(move);
+        TextView help = text("Compromissos fixos e tarefas recorrentes nunca são movidos. Se uma tarefa flexível já venceu, o prazo é ajustado para amanhã para evitar um planejamento impossível.", 9, MUTED, false);
+        help.setPadding(dp(3),dp(5),dp(3),dp(8)); form.addView(help);
+        if (old != null) { mood.setSelection(Math.max(0, Math.min(4, old.mood - 1))); note.setText(old.note); }
+
+        AlertDialog dlg = new AlertDialog.Builder(this).setTitle("Encerrar o dia").setView(form).setNegativeButton("Cancelar",null).setPositiveButton("Salvar revisão",null).create();
+        dlg.show();
+        dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            int selectedMood = mood.getSelectedItemPosition() + 1;
+            int done = store.doneTasksOn(today), pendingBefore = store.openTasksOn(today), focus = store.focusMinutesOn(today);
+            int moved = 0;
+            if (move.isChecked()) moved = store.moveFlexibleOpenTasks(today, Store.addDays(today, 1));
+            store.saveDayReview(new Store.DayReview(today, selectedMood, note.getText().toString().trim(), done, pendingBefore, focus, System.currentTimeMillis()));
+            try { ReminderScheduler.rescheduleAll(this, store); } catch (Throwable ignored) { }
+            dlg.dismiss();
+            String msg = moved > 0 ? moved + " tarefa(s) flexível(is) preparadas para amanhã." : "Revisão do dia salva.";
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show(); showPage("home");
+        });
+    }
+
+    private void showTomorrowPlanningDialog() {
+        String tomorrow = Store.addDays(Store.today(), 1);
+        int already = 0, todayOpen = 0, movable = 0;
+        for (Store.Task t : store.tasks) {
+            if (tomorrow.equals(t.date) && !"done".equals(t.status)) already++;
+            if (Store.today().equals(t.date) && !"done".equals(t.status)) {
+                todayOpen++;
+                if (t.flexible && "none".equals(t.recurrence)) movable++;
+            }
+        }
+        LinearLayout form = dialogForm();
+        form.addView(text(fullDate(tomorrow), 16, TEXT, true));
+        TextView summary = text(already + " tarefa(s) já planejadas para amanhã. Hoje ainda existem " + todayOpen + " pendência(s), sendo " + movable + " flexível(is).", 11, MUTED, false);
+        summary.setPadding(0,dp(5),0,dp(13)); form.addView(summary);
+        CheckBox move = new CheckBox(this); move.setText("Mover pendências flexíveis de hoje para amanhã"); move.setTextColor(TEXT); move.setButtonTintList(ColorStateList.valueOf(BRAND)); move.setChecked(movable > 0); form.addView(move);
+        Button create = secondaryButton("+ Criar tarefa diretamente em amanhã"); form.addView(create,marginTopBottom(dp(10),0));
+        AlertDialog dlg = new AlertDialog.Builder(this).setTitle("Planejar amanhã").setView(form).setNegativeButton("Agora não",null).setPositiveButton("Preparar amanhã",null).create();
+        dlg.show();
+        create.setOnClickListener(v -> { dlg.dismiss(); showTaskDialog(null,false,tomorrow); });
+        dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            int moved = move.isChecked() ? store.moveFlexibleOpenTasks(Store.today(), tomorrow) : 0;
+            try { ReminderScheduler.rescheduleAll(this, store); } catch (Throwable ignored) { }
+            dlg.dismiss(); selectedAgendaDate = tomorrow; syncMonthToSelected(); showPage("agenda");
+            Toast.makeText(this, moved > 0 ? moved + " tarefa(s) movidas. Amanhã está pronto para revisão." : "Abrindo o planejamento de amanhã.", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private String moodLabel(int mood) {
+        if (mood <= 1) return "pesado"; if (mood == 2) return "difícil"; if (mood == 3) return "normal"; if (mood == 4) return "bom"; return "excelente";
     }
 
     private View metricsRow(List<Store.Task> today) {
@@ -1303,6 +1427,17 @@ public class MainActivity extends Activity {
         planningPrefs.addView(autoHelp);
         body.addView(planningPrefs);
 
+        body.addView(sectionHeader("Execução diária", null, null));
+        LinearLayout daily = cardBox(); daily.setOrientation(LinearLayout.VERTICAL); daily.setPadding(dp(15),dp(13),dp(15),dp(13));
+        daily.addView(text("Fechamento e preparação",12,TEXT,true));
+        TextView dailyHelp = text("Revise o que aconteceu hoje e prepare amanhã sem carregar compromissos fixos por acidente.",10,MUTED,false); dailyHelp.setPadding(0,dp(3),0,dp(10)); daily.addView(dailyHelp);
+        LinearLayout dailyButtons = new LinearLayout(this); dailyButtons.setOrientation(LinearLayout.HORIZONTAL);
+        Button closeDay = secondaryButton("✓ Revisar hoje"); closeDay.setOnClickListener(v -> showDayReviewDialog());
+        Button planTomorrow = secondaryButton("→ Planejar amanhã"); planTomorrow.setOnClickListener(v -> showTomorrowPlanningDialog());
+        dailyButtons.addView(closeDay, weightedMarginCompact(0,5)); dailyButtons.addView(planTomorrow, weightedMarginCompact(5,0)); daily.addView(dailyButtons);
+        TextView reviewStats = text(store.reviewedDaysLast7() + "/7 dias revisados nesta semana",9,BRAND,true); reviewStats.setPadding(0,dp(9),0,0); daily.addView(reviewStats);
+        body.addView(daily);
+
         body.addView(sectionHeader("Lembretes", null, null));
         LinearLayout reminders = cardBox();
         reminders.setOrientation(LinearLayout.VERTICAL);
@@ -1324,9 +1459,9 @@ public class MainActivity extends Activity {
         LinearLayout about = cardBox();
         about.setOrientation(LinearLayout.VERTICAL);
         about.setPadding(dp(15), dp(14), dp(15), dp(14));
-        about.addView(text("Ritmo 2.3.0", 14, TEXT, true));
+        about.addView(text("Ritmo 2.4.0", 14, TEXT, true));
         about.addView(text("Gestão de rotina, foco, hábitos e planejamento. Seus dados continuam locais no aparelho.", 10, MUTED, false));
-        TextView storage = text(store.tasks.size() + " tarefas · " + store.routines.size() + " hábitos · " + store.focusSessions.size() + " sessões de foco", 10, BRAND, true);
+        TextView storage = text(store.tasks.size() + " tarefas · " + store.routines.size() + " hábitos · " + store.focusSessions.size() + " sessões de foco · " + store.dayReviews.size() + " revisões diárias", 10, BRAND, true);
         storage.setPadding(0, dp(8), 0, 0);
         about.addView(storage);
         body.addView(about);
@@ -1518,6 +1653,11 @@ public class MainActivity extends Activity {
         wrap.addView(hf);
         wrap.addView(focusStatsCard());
 
+        TextView hh=text("Histórico recente",16,TEXT,true);
+        hh.setPadding(dp(3),dp(20),0,dp(8));
+        wrap.addView(hh);
+        wrap.addView(focusHistoryCard());
+
         TextView h1=text("Produtividade semanal",16,TEXT,true);
         h1.setPadding(dp(3),dp(20),0,dp(8));
         wrap.addView(h1);
@@ -1580,6 +1720,39 @@ public class MainActivity extends Activity {
         cp.setMargins(0, dp(10), 0, 0);
         card.addView(chart, cp);
         return card;
+    }
+
+    private View focusHistoryCard() {
+        LinearLayout card = cardBox(); card.setOrientation(LinearLayout.VERTICAL); card.setPadding(dp(14),dp(7),dp(14),dp(7));
+        if (store.focusSessions.isEmpty()) {
+            card.addView(emptyInline("Nenhuma sessão registrada ainda. Seu primeiro bloco de foco aparecerá aqui."));
+            return card;
+        }
+        List<Store.FocusSession> sessions = new ArrayList<>(store.focusSessions);
+        Collections.sort(sessions, (a,b) -> Long.compare(b.startedAt, a.startedAt));
+        int limit = Math.min(8, sessions.size());
+        for (int i = 0; i < limit; i++) {
+            Store.FocusSession f = sessions.get(i);
+            LinearLayout row = new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(2),dp(10),dp(2),dp(10));
+            ImageView icon = new ImageView(this); icon.setImageResource(R.drawable.ic_focus); icon.setColorFilter(BRAND); icon.setPadding(dp(8),dp(8),dp(8),dp(8)); icon.setBackground(rounded(BRAND_SOFT,12,false));
+            row.addView(icon,new LinearLayout.LayoutParams(dp(40),dp(40)));
+            LinearLayout info = new LinearLayout(this); info.setOrientation(LinearLayout.VERTICAL); info.setPadding(dp(10),0,dp(6),0);
+            info.addView(text(f.title,12,TEXT,true));
+            int pct = f.plannedMinutes <= 0 ? 0 : Math.min(199, Math.round(f.actualMinutes * 100f / Math.max(1,f.plannedMinutes)));
+            info.addView(text(compactDate(f.date) + " · " + clockTime(f.startedAt) + " · " + f.mode,9,MUTED,false));
+            row.addView(info,new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f));
+            LinearLayout value = new LinearLayout(this); value.setOrientation(LinearLayout.VERTICAL); value.setGravity(Gravity.RIGHT);
+            TextView minutes = text(humanMinutes(f.actualMinutes),11,GOOD,true); minutes.setGravity(Gravity.RIGHT); value.addView(minutes);
+            TextView planned = text(pct + "% do alvo",9,MUTED,false); planned.setGravity(Gravity.RIGHT); value.addView(planned);
+            row.addView(value);
+            card.addView(row); if (i < limit - 1) card.addView(divider());
+        }
+        if (sessions.size() > limit) { TextView more = text("Mostrando as " + limit + " sessões mais recentes de " + sessions.size() + ".",9,MUTED,false); more.setPadding(dp(2),dp(7),0,dp(8)); card.addView(more); }
+        return card;
+    }
+
+    private String clockTime(long millis) {
+        try { return new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date(millis)); } catch (Throwable e) { return "—"; }
     }
 
     private View categoryDistributionCard(){
@@ -1908,14 +2081,90 @@ public class MainActivity extends Activity {
     private View insight(String title,String msg){LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(0,dp(10),0,dp(10));box.addView(text(title,12,TEXT,true));box.addView(text(msg,11,MUTED,false));return box;}
 
     private void showAddMenu(){
-        String[] items={"Nova tarefa","Novo compromisso","Novo projeto","Nova meta","Novo hábito"};
-        new AlertDialog.Builder(this).setTitle("Adicionar").setItems(items,(d,which)->{
-            if(which==0)showTaskDialog(null,false,null);
-            else if(which==1)showTaskDialog(null,true,null);
-            else if(which==2)showProjectDialog(null);
-            else if(which==3)showGoalDialog(null);
-            else showRoutineDialog(null);
-        }).show();
+        final Dialog dialog = new Dialog(this);
+        LinearLayout sheet = new LinearLayout(this);
+        sheet.setOrientation(LinearLayout.VERTICAL);
+        sheet.setPadding(dp(18), dp(10), dp(18), dp(20));
+        sheet.setBackground(rounded(PANEL, 26, true));
+
+        View handle = new View(this);
+        handle.setBackground(rounded(LINE, 99, false));
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(dp(42), dp(4));
+        hp.gravity = Gravity.CENTER_HORIZONTAL; hp.setMargins(0, 0, 0, dp(14));
+        sheet.addView(handle, hp);
+
+        LinearLayout heading = new LinearLayout(this); heading.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout headingText = new LinearLayout(this); headingText.setOrientation(LinearLayout.VERTICAL);
+        headingText.addView(text("Criar no Ritmo", 20, TEXT, true));
+        headingText.addView(text("Capture rápido agora. Organize os detalhes depois.", 10, MUTED, false));
+        heading.addView(headingText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        ImageButton close = iconButton(R.drawable.ic_close, MUTED);
+        close.setOnClickListener(v -> dialog.dismiss());
+        heading.addView(close, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        sheet.addView(heading);
+
+        LinearLayout primary = quickAddTile(R.drawable.ic_tasks, "Nova tarefa", "Ação, prazo, prioridade e subtarefas", BRAND, true);
+        primary.setOnClickListener(v -> { dialog.dismiss(); showTaskDialog(null, false, null); });
+        sheet.addView(primary, marginTopBottom(dp(16), dp(9)));
+
+        GridLayout grid = new GridLayout(this);
+        grid.setColumnCount(2);
+        LinearLayout event = quickAddTile(R.drawable.ic_calendar, "Compromisso", "Horário fixo", WARN, false);
+        event.setOnClickListener(v -> { dialog.dismiss(); showTaskDialog(null, true, null); });
+        LinearLayout habit = quickAddTile(R.drawable.ic_routine, "Hábito", "Rotina recorrente", GOOD, false);
+        habit.setOnClickListener(v -> { dialog.dismiss(); showRoutineDialog(null); });
+        LinearLayout project = quickAddTile(R.drawable.ic_grid, "Projeto", "Agrupe objetivos", BRAND, false);
+        project.setOnClickListener(v -> { dialog.dismiss(); showProjectDialog(null); });
+        LinearLayout goal = quickAddTile(R.drawable.ic_stats, "Meta", "Acompanhe progresso", ACCENT, false);
+        goal.setOnClickListener(v -> { dialog.dismiss(); showGoalDialog(null); });
+        addGridTile(grid, event, 0, 0); addGridTile(grid, habit, 0, 1);
+        addGridTile(grid, project, 1, 0); addGridTile(grid, goal, 1, 1);
+        sheet.addView(grid);
+
+        TextView quick = text("ATALHOS", 10, MUTED, true); quick.setPadding(dp(3), dp(17), 0, dp(8)); sheet.addView(quick);
+        LinearLayout shortcuts = new LinearLayout(this); shortcuts.setOrientation(LinearLayout.HORIZONTAL);
+        Button focus = secondaryButton("◎ Iniciar foco"); focus.setOnClickListener(v -> { dialog.dismiss(); startFocus(null); });
+        Button tomorrow = secondaryButton("→ Planejar amanhã"); tomorrow.setOnClickListener(v -> { dialog.dismiss(); showTomorrowPlanningDialog(); });
+        shortcuts.addView(focus, weightedMarginCompact(0, 5)); shortcuts.addView(tomorrow, weightedMarginCompact(5, 0));
+        sheet.addView(shortcuts);
+
+        dialog.setContentView(sheet);
+        dialog.setCanceledOnTouchOutside(true);
+        Window w = dialog.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            w.setDimAmount(.48f);
+            w.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            w.setGravity(Gravity.BOTTOM);
+            w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+        dialog.setOnShowListener(d -> {
+            Window win = dialog.getWindow();
+            if (win != null) win.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            if (!reduceMotion) { sheet.setTranslationY(dp(28)); sheet.setAlpha(.7f); sheet.animate().translationY(0f).alpha(1f).setDuration(180L).start(); }
+        });
+        dialog.show();
+    }
+
+    private LinearLayout quickAddTile(int iconRes, String title, String subtitle, int color, boolean prominent) {
+        LinearLayout tile = new LinearLayout(this); tile.setGravity(Gravity.CENTER_VERTICAL);
+        tile.setPadding(dp(13), dp(prominent ? 13 : 11), dp(13), dp(prominent ? 13 : 11));
+        int tintBg = Color.argb(darkMode ? 46 : 24, Color.red(color), Color.green(color), Color.blue(color));
+        tile.setBackground(rounded(prominent ? BRAND_SOFT : tintBg, prominent ? 18 : 16, true));
+        ImageView icon = new ImageView(this); icon.setImageResource(iconRes); icon.setColorFilter(color);
+        icon.setPadding(dp(9), dp(9), dp(9), dp(9)); icon.setBackground(rounded(tintBg, 14, false));
+        tile.addView(icon, new LinearLayout.LayoutParams(dp(prominent ? 48 : 43), dp(prominent ? 48 : 43)));
+        LinearLayout words = new LinearLayout(this); words.setOrientation(LinearLayout.VERTICAL); words.setPadding(dp(11), 0, 0, 0);
+        words.addView(text(title, prominent ? 15 : 13, TEXT, true)); words.addView(text(subtitle, 9, MUTED, false));
+        tile.addView(words, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        makePressable(tile); return tile;
+    }
+
+    private void addGridTile(GridLayout grid, View tile, int row, int col) {
+        GridLayout.Spec rs = GridLayout.spec(row, 1f); GridLayout.Spec cs = GridLayout.spec(col, 1f);
+        GridLayout.LayoutParams p = new GridLayout.LayoutParams(rs, cs);
+        p.width = 0; p.height = dp(72); p.setMargins(col == 0 ? 0 : dp(5), dp(5), col == 0 ? dp(5) : 0, dp(5));
+        grid.addView(tile, p);
     }
 
     private void showTaskDialog(Store.Task existing, boolean eventMode, String forcedDate){
@@ -2082,7 +2331,7 @@ public class MainActivity extends Activity {
         minutes.setInputType(InputType.TYPE_CLASS_NUMBER);
         Spinner frequency=spinner(new String[]{"Todos os dias","Seg a Sex","Semanal","Dias específicos"});
         Spinner category=spinner(new String[]{"Pessoal","Saúde","Estudos","Trabalho","Projeto","Financeiro"});
-        Spinner accent=spinner(new String[]{"Violeta","Menta","Âmbar","Rosa","Azul"});
+        Spinner accent=spinner(new String[]{"Verde","Menta","Âmbar","Rosa","Azul"});
         Spinner reminder=spinner(new String[]{"Sem lembrete","Na hora","10 min antes","30 min antes","1 h antes"});
         final int[] daysMask = { existing == null ? 0 : existing.daysMask };
         Button days = secondaryButton(daysMask[0] == 0 ? "Selecionar dias" : daysMaskLabel(daysMask[0]));
@@ -2100,7 +2349,7 @@ public class MainActivity extends Activity {
         form.addView(hint);
 
         minutes.setText("15");
-        setSpinner(accent,"Violeta");
+        setSpinner(accent,"Verde");
         if(existing!=null){
             title.setText(existing.title);
             detail.setText(existing.detail);
@@ -2379,7 +2628,7 @@ public class MainActivity extends Activity {
         if ("Âmbar".equals(label)) return "amber";
         if ("Rosa".equals(label)) return "rose";
         if ("Azul".equals(label)) return "blue";
-        return "violet";
+        return "green";
     }
 
     private String routineAccentLabel(String key) {
@@ -2387,7 +2636,7 @@ public class MainActivity extends Activity {
         if ("amber".equals(key)) return "Âmbar";
         if ("rose".equals(key)) return "Rosa";
         if ("blue".equals(key)) return "Azul";
-        return "Violeta";
+        return "Verde";
     }
 
     private String[] projectLabels(){String[] values=new String[store.projects.size()+1];values[0]="Sem projeto";for(int i=0;i<store.projects.size();i++)values[i+1]=store.projects.get(i).title;return values;}
@@ -2403,8 +2652,10 @@ public class MainActivity extends Activity {
 
     private GradientDrawable rounded(int color,int radiusDp,boolean stroke){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(radiusDp));if(stroke)g.setStroke(dp(1),LINE);return g;}
     private LinearLayout.LayoutParams marginBottom(int bottom){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);p.setMargins(0,0,0,bottom);return p;}
+    private LinearLayout.LayoutParams marginTopBottom(int top,int bottom){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);p.setMargins(0,top,0,bottom);return p;}
     private LinearLayout.LayoutParams weighted(){return new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.MATCH_PARENT,1f);}
     private LinearLayout.LayoutParams weightedMargin(int left,int right){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(82),1f);p.setMargins(dp(left),0,dp(right),0);return p;}
+    private LinearLayout.LayoutParams weightedMarginCompact(int left,int right){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(46),1f);p.setMargins(dp(left),0,dp(right),0);return p;}
 
     private int dp(int v){return Math.round(v*getResources().getDisplayMetrics().density);}
     private boolean isTablet(){return getResources().getConfiguration().smallestScreenWidthDp>=600;}

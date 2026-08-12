@@ -84,34 +84,34 @@ public class FocusActivity extends Activity {
         if ("dark".equals(mode)) return true;
         if ("light".equals(mode)) return false;
         if ("system".equals(mode)) return (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-        return ui.getBoolean("dark", false);
+        return ui.contains("dark") ? ui.getBoolean("dark", true) : true;
     }
 
     private void applyPalette() {
         if (dark) {
-            BG = Color.rgb(15, 23, 42);
-            PANEL = Color.rgb(30, 41, 59);
-            PANEL2 = Color.rgb(24, 33, 50);
-            TEXT = Color.rgb(248, 250, 252);
-            MUTED = Color.rgb(148, 163, 184);
-            LINE = Color.rgb(51, 65, 85);
-            BRAND = Color.rgb(129, 140, 248);
-            BRAND_SOFT = Color.rgb(49, 46, 89);
-            MINT = Color.rgb(45, 212, 191);
-            AMBER = Color.rgb(251, 191, 36);
-            BAD = Color.rgb(251, 113, 133);
+            BG = Color.rgb(7, 26, 20);          // verde profundo
+            PANEL = Color.rgb(13, 38, 30);
+            PANEL2 = Color.rgb(18, 51, 40);
+            TEXT = Color.rgb(240, 248, 244);
+            MUTED = Color.rgb(145, 170, 160);
+            LINE = Color.rgb(29, 73, 58);
+            BRAND = Color.rgb(66, 211, 155);
+            BRAND_SOFT = Color.rgb(21, 63, 49);
+            MINT = Color.rgb(97, 231, 178);
+            AMBER = Color.rgb(229, 178, 81);
+            BAD = Color.rgb(240, 125, 125);
         } else {
-            BG = Color.rgb(248, 249, 250);
+            BG = Color.rgb(245, 248, 246);
             PANEL = Color.WHITE;
-            PANEL2 = Color.rgb(241, 245, 249);
-            TEXT = Color.rgb(17, 24, 39);
-            MUTED = Color.rgb(100, 116, 139);
-            LINE = Color.rgb(226, 232, 240);
-            BRAND = Color.rgb(99, 102, 241);
-            BRAND_SOFT = Color.rgb(238, 242, 255);
-            MINT = Color.rgb(13, 148, 136);
-            AMBER = Color.rgb(217, 119, 6);
-            BAD = Color.rgb(225, 29, 72);
+            PANEL2 = Color.rgb(234, 243, 239);
+            TEXT = Color.rgb(16, 33, 26);
+            MUTED = Color.rgb(97, 115, 107);
+            LINE = Color.rgb(220, 232, 226);
+            BRAND = Color.rgb(20, 122, 90);
+            BRAND_SOFT = Color.rgb(223, 243, 234);
+            MINT = Color.rgb(44, 182, 125);
+            AMBER = Color.rgb(212, 154, 42);
+            BAD = Color.rgb(217, 92, 92);
         }
     }
 
@@ -177,6 +177,10 @@ public class FocusActivity extends Activity {
         LinearLayout.LayoutParams tcp = margin(dp(18), dp(14));
         root.addView(taskCard, tcp);
 
+        TextView backgroundHint = text("Você pode bloquear a tela ou usar outros apps. O cronômetro continua pela notificação do Ritmo.", 10, MUTED, false);
+        backgroundHint.setPadding(dp(3), 0, dp(3), dp(12));
+        root.addView(backgroundHint);
+
         LinearLayout modes = new LinearLayout(this);
         modes.setOrientation(LinearLayout.HORIZONTAL);
         modes.setGravity(Gravity.CENTER);
@@ -196,7 +200,7 @@ public class FocusActivity extends Activity {
         ring = new ProgressRingView(this);
         ring.setStrokeDp(9f);
         ring.setShowText(false);
-        ring.setColors(MINT, dark ? Color.rgb(51,65,85) : Color.rgb(226,232,240), TEXT);
+        ring.setColors(MINT, dark ? Color.rgb(29,73,58) : Color.rgb(220,232,226), TEXT);
         timerWrap.addView(ring, new FrameLayout.LayoutParams(dp(238), dp(238), Gravity.CENTER));
 
         LinearLayout timerLabels = new LinearLayout(this);
@@ -274,6 +278,8 @@ public class FocusActivity extends Activity {
         endAt = segmentStartedAt + remainingMillis;
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         haptic(HapticFeedbackConstants.CLOCK_TICK);
+        persistState();
+        try { FocusTimerService.start(this); } catch (Throwable ignored) { }
         startTicker();
         renderTimer();
     }
@@ -289,6 +295,7 @@ public class FocusActivity extends Activity {
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         renderTimer();
         persistState();
+        try { FocusTimerService.stop(this); } catch (Throwable ignored) { }
     }
 
     private void startTicker() {
@@ -320,6 +327,8 @@ public class FocusActivity extends Activity {
         } else {
             remainingMillis = endAt - now;
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            persistState();
+            try { FocusTimerService.start(this); } catch (Throwable ignored) { }
             startTicker();
         }
     }
@@ -348,6 +357,7 @@ public class FocusActivity extends Activity {
         }
         finished = true;
         clearPersistedState();
+        try { FocusTimerService.stop(this); } catch (Throwable ignored) { }
         haptic(Build.VERSION.SDK_INT >= 30 ? HapticFeedbackConstants.CONFIRM : HapticFeedbackConstants.LONG_PRESS);
         timerText.setText(completedTimer ? "Concluído" : humanMinutes(actualMinutes));
         statusText.setText(completedTimer ? "Ótimo trabalho. Faça uma pausa curta." : "Sessão registrada");

@@ -25,6 +25,7 @@ public class Store {
     public final List<Completion> completions = new ArrayList<>();
     public final List<Project> projects = new ArrayList<>();
     public final List<FocusSession> focusSessions = new ArrayList<>();
+    public final List<DayReview> dayReviews = new ArrayList<>();
 
     private final SharedPreferences prefs;
     private final Context appContext;
@@ -79,23 +80,25 @@ public class Store {
         }
         try {
             JSONObject root = new JSONObject(raw);
-            tasks.clear(); goals.clear(); routines.clear(); completions.clear(); projects.clear(); focusSessions.clear();
+            tasks.clear(); goals.clear(); routines.clear(); completions.clear(); projects.clear(); focusSessions.clear(); dayReviews.clear();
             JSONArray t = root.optJSONArray("tasks");
             JSONArray g = root.optJSONArray("goals");
             JSONArray r = root.optJSONArray("routines");
             JSONArray c = root.optJSONArray("completions");
             JSONArray p = root.optJSONArray("projects");
             JSONArray f = root.optJSONArray("focusSessions");
+            JSONArray dr = root.optJSONArray("dayReviews");
             if (t != null) for (int i = 0; i < t.length(); i++) tasks.add(Task.fromJson(t.getJSONObject(i)));
             if (g != null) for (int i = 0; i < g.length(); i++) goals.add(Goal.fromJson(g.getJSONObject(i)));
             if (r != null) for (int i = 0; i < r.length(); i++) routines.add(Routine.fromJson(r.getJSONObject(i)));
             if (c != null) for (int i = 0; i < c.length(); i++) completions.add(Completion.fromJson(c.getJSONObject(i)));
             if (p != null) for (int i = 0; i < p.length(); i++) projects.add(Project.fromJson(p.getJSONObject(i)));
             if (f != null) for (int i = 0; i < f.length(); i++) focusSessions.add(FocusSession.fromJson(f.getJSONObject(i)));
+            if (dr != null) for (int i = 0; i < dr.length(); i++) dayReviews.add(DayReview.fromJson(dr.getJSONObject(i)));
             sanitizeLoadedData();
         } catch (Exception e) {
             try { prefs.edit().putString("ritmo_data_corrupt_backup", raw).apply(); } catch (Throwable ignored) { }
-            tasks.clear(); goals.clear(); routines.clear(); completions.clear(); projects.clear(); focusSessions.clear();
+            tasks.clear(); goals.clear(); routines.clear(); completions.clear(); projects.clear(); focusSessions.clear(); dayReviews.clear();
             seed(); save();
         }
     }
@@ -126,7 +129,7 @@ public class Store {
             if (r.startDate == null || r.startDate.length() != 10) r.startDate = today();
             if (r.time == null) r.time = "";
             if (r.category == null || r.category.trim().isEmpty()) r.category = "Pessoal";
-            if (r.accent == null || r.accent.trim().isEmpty()) r.accent = "violet";
+            if (r.accent == null || r.accent.trim().isEmpty()) r.accent = "green";
             if (r.minutes < 0) r.minutes = 0;
         }
         for (Project p : projects) {
@@ -139,15 +142,16 @@ public class Store {
     public void save() {
         try {
             JSONObject root = new JSONObject();
-            JSONArray t = new JSONArray(), g = new JSONArray(), r = new JSONArray(), c = new JSONArray(), p = new JSONArray(), f = new JSONArray();
+            JSONArray t = new JSONArray(), g = new JSONArray(), r = new JSONArray(), c = new JSONArray(), p = new JSONArray(), f = new JSONArray(), dr = new JSONArray();
             for (Task item : tasks) t.put(item.toJson());
             for (Goal item : goals) g.put(item.toJson());
             for (Routine item : routines) r.put(item.toJson());
             for (Completion item : completions) c.put(item.toJson());
             for (Project item : projects) p.put(item.toJson());
             for (FocusSession item : focusSessions) f.put(item.toJson());
-            root.put("tasks", t); root.put("goals", g); root.put("routines", r); root.put("completions", c); root.put("projects", p); root.put("focusSessions", f);
-            root.put("schemaVersion", 5);
+            for (DayReview item : dayReviews) dr.put(item.toJson());
+            root.put("tasks", t); root.put("goals", g); root.put("routines", r); root.put("completions", c); root.put("projects", p); root.put("focusSessions", f); root.put("dayReviews", dr);
+            root.put("schemaVersion", 6);
             prefs.edit().putString(KEY_DATA, root.toString()).apply();
             try { RitmoWidgetProvider.updateAll(appContext); } catch (Throwable ignored) { }
         } catch (Exception ignored) { }
@@ -465,6 +469,57 @@ public class Store {
         routines.add(new Routine(System.currentTimeMillis() + 23, "Revisão noturna", "Fechar pendências e preparar amanhã", "daily", 20, d));
     }
 
+    public DayReview findDayReview(String date) {
+        for (DayReview r : dayReviews) if (date.equals(r.date)) return r;
+        return null;
+    }
+
+    public void saveDayReview(DayReview review) {
+        if (review == null || review.date == null) return;
+        for (int i = dayReviews.size() - 1; i >= 0; i--) {
+            if (review.date.equals(dayReviews.get(i).date)) dayReviews.remove(i);
+        }
+        dayReviews.add(review);
+        save();
+    }
+
+    public int openTasksOn(String date) {
+        int total = 0;
+        for (Task t : tasks) if (date.equals(t.date) && !"done".equals(t.status)) total++;
+        return total;
+    }
+
+    public int doneTasksOn(String date) {
+        int total = 0;
+        for (Task t : tasks) if (date.equals(t.date) && "done".equals(t.status)) total++;
+        return total;
+    }
+
+    /**
+     * Recupera somente tarefas realmente flexíveis do dia informado. Compromissos
+     * fixos e recorrências nunca são movidos. Se o prazo já venceu, ele é trazido
+     * junto para o novo dia para evitar um estado inválido data > prazo.
+     */
+    public int moveFlexibleOpenTasks(String fromDate, String toDate) {
+        int moved = 0;
+        for (Task t : tasks) {
+            if (!fromDate.equals(t.date) || "done".equals(t.status)) continue;
+            if (!t.flexible || !"none".equals(t.recurrence)) continue;
+            t.date = toDate;
+            if (t.deadline == null || t.deadline.length() != 10 || t.deadline.compareTo(toDate) < 0) t.deadline = toDate;
+            moved++;
+        }
+        if (moved > 0) save();
+        return moved;
+    }
+
+    public int reviewedDaysLast7() {
+        String start = addDays(today(), -6);
+        int total = 0;
+        for (DayReview r : dayReviews) if (r.date.compareTo(start) >= 0 && r.date.compareTo(today()) <= 0) total++;
+        return total;
+    }
+
     public static class Task {
         public long id, projectId;
         public String title, description, date, time, deadline, priority, category, status, recurrence;
@@ -646,6 +701,36 @@ public class Store {
             String digits = detail.replaceAll("[^0-9]", " ").trim();
             if (digits.isEmpty()) return 15;
             try { return Integer.parseInt(digits.split("\\s+")[0]); } catch (Exception e) { return 15; }
+        }
+    }
+
+    public static class DayReview {
+        public String date, note;
+        public int mood, doneCount, pendingCount, focusMinutes;
+        public long createdAt;
+
+        public DayReview(String date, int mood, String note, int doneCount, int pendingCount, int focusMinutes, long createdAt) {
+            this.date = date; this.mood = mood; this.note = note == null ? "" : note;
+            this.doneCount = doneCount; this.pendingCount = pendingCount; this.focusMinutes = focusMinutes; this.createdAt = createdAt;
+        }
+
+        JSONObject toJson() throws Exception {
+            JSONObject o = new JSONObject();
+            o.put("date", date); o.put("mood", mood); o.put("note", note);
+            o.put("doneCount", doneCount); o.put("pendingCount", pendingCount); o.put("focusMinutes", focusMinutes); o.put("createdAt", createdAt);
+            return o;
+        }
+
+        static DayReview fromJson(JSONObject o) {
+            return new DayReview(
+                    o.optString("date", today()),
+                    Math.max(1, Math.min(5, o.optInt("mood", 3))),
+                    o.optString("note", ""),
+                    Math.max(0, o.optInt("doneCount", 0)),
+                    Math.max(0, o.optInt("pendingCount", 0)),
+                    Math.max(0, o.optInt("focusMinutes", 0)),
+                    o.optLong("createdAt", System.currentTimeMillis())
+            );
         }
     }
 

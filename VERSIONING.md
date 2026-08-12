@@ -1,32 +1,25 @@
 # Versionamento do Ritmo
 
-O projeto usa versionamento semântico:
+O projeto segue Semantic Versioning de forma prática:
 
-- PATCH: correções pequenas, ex. `2.3.0 → 2.3.1`.
-- MINOR: novos recursos compatíveis, ex. `2.3.1 → 2.4.0`.
-- MAJOR: mudanças grandes ou incompatíveis, ex. `2.x → 3.0.0`.
+- PATCH: correções e estabilidade, ex. `2.4.0 → 2.4.1`.
+- MINOR: novos recursos compatíveis, ex. `2.4.1 → 2.5.0`.
+- MAJOR: mudança ampla de arquitetura/comportamento, ex. `2.x → 3.0.0`.
 
-A 2.3.0 usa:
+A 2.4.0 usa:
 
 ```gradle
-versionCode 6
-versionName '2.3.0'
+versionCode 7
+versionName '2.4.0'
 ```
 
-Toda build instalável futura deve aumentar `versionCode` pelo menos em 1.
+Sempre aumente `versionCode` em cada APK distribuído.
 
-Fluxo recomendado:
+Após validar uma versão estável:
 
 ```bash
-git status
-git add .
-git commit -m "feat: Ritmo 2.3.0 redesign, foco e hábitos"
-git push origin main
+git tag -a v2.4.0 -m "Ritmo 2.4.0"
+git push origin v2.4.0
 ```
 
-Somente depois de validar o APK:
-
-```bash
-git tag -a v2.3.0 -m "Ritmo 2.3.0"
-git push origin v2.3.0
-```
+Mantenha `signing/ritmo.keystore` preservado para que o Android reconheça as próximas builds como atualizações do mesmo app.

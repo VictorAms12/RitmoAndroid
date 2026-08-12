@@ -1,47 +1,36 @@
-# Atualizar o Ritmo para 2.3.0 no Windows
+# Atualizar o Ritmo para 2.4.0 no Windows
 
-## 1. Preparar os arquivos
+1. Baixe e extraia `RitmoAndroid-v2.4.0.zip`.
+2. Abra a pasta extraída e copie **o conteúdo dela** para dentro do seu repositório local `RitmoAndroid`.
+3. Não apague a pasta `.git` do repositório local.
+4. Abra o Git Bash dentro de `RitmoAndroid`.
 
-Extraia `RitmoAndroid-v2.3.0.zip`. Copie **o conteúdo de dentro da pasta extraída** para a pasta local já clonada do repositório `RitmoAndroid`.
-
-Não apague nem substitua a pasta oculta `.git` do repositório local.
-
-## 2. Conferir a versão
-
-No Git Bash, dentro da pasta `RitmoAndroid`:
+Confira:
 
 ```bash
-grep "versionName" app/build.gradle
 git status
+grep "versionName" app/build.gradle
 ```
 
-O primeiro comando deve mostrar:
+O `grep` deve mostrar:
 
 ```text
-versionName '2.3.0'
+versionName '2.4.0'
 ```
 
-No PowerShell, a conferência equivalente é:
-
-```powershell
-Select-String "versionName" app\build.gradle
-```
-
-## 3. Commit e push
+Depois:
 
 ```bash
 git add .
-git commit -m "feat: Ritmo 2.3.0 redesign, foco e hábitos"
+git commit -m "feat: Ritmo 2.4.0 execucao diaria e tema verde"
 git push origin main
 ```
 
-O GitHub Actions deve iniciar automaticamente e gerar o artifact `Ritmo-v2.3.0-APK`.
+O GitHub Actions deverá gerar `Ritmo-v2.4.0-APK`.
 
-## 4. Depois de testar o APK
+Depois de testar a versão:
 
 ```bash
-git tag -a v2.3.0 -m "Ritmo 2.3.0"
-git push origin v2.3.0
+git tag -a v2.4.0 -m "Ritmo 2.4.0"
+git push origin v2.4.0
 ```
-
-Não crie a tag antes de confirmar que a atualização abre, preserva os dados e que foco, hábitos, planner, notificações e temas estão estáveis.
