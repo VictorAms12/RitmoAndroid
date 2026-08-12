@@ -1,33 +1,60 @@
-# Ritmo 2.1.0 — Android nativo
+# Ritmo 2.2.0 — Android nativo
 
 Ritmo é um app Android de rotina e produtividade feito em Java nativo, offline-first e sem WebView.
 
-## Destaques da 2.1.0
+## Destaques da 2.2.0
 
-- Exclusão visível dentro do editor de tarefa, meta, hábito e projeto.
-- Editor de tarefa mais compacto, com campos em duas colunas quando há espaço.
-- Pesquisa de tarefas por título, descrição, categoria ou projeto.
-- Filtros por estado e categoria.
-- Projetos completos com prazo, descrição, progresso e tarefas vinculadas.
-- Subtarefas com marcação individual.
-- Prioridade **Automática**, calculada pelo prazo da tarefa.
-- Kanban com arrastar e soltar entre A fazer, Em andamento e Concluído.
-- Planejamento semanal com arrastar tarefas de um dia para outro.
-- Visão semanal redesenhada para leitura rápida da carga de cada dia.
-- Estatísticas mais úteis: taxa de conclusão, atrasadas, melhor dia e tempo concluído.
-- Notificações com ações rápidas: **Concluir** e **Adiar 10 min**.
-- Widget de tela inicial com eficiência e pendências do dia.
-- Top bar adaptativa: título/subtítulo mudam conforme a tela.
-- Integração visual das barras de status/navegação com tema claro/escuro.
-- Persistência offline e migração dos dados das versões 2.0.x.
+A 2.2.0 introduz o **Planejamento Inteligente local**. O app agora consegue distribuir tarefas flexíveis pelos próximos sete dias levando em conta prazo, prioridade, duração, carga já existente, hábitos e horários disponíveis.
+
+### Planejador inteligente
+- Nova aba **Organizar → Planejador**.
+- Configuração de capacidade produtiva diária.
+- Configuração do horário disponível para execução de tarefas.
+- Opção de planejar de segunda a domingo ou somente dias úteis.
+- Indicador de carga para cada um dos próximos sete dias.
+- Estados visuais: Leve, Equilibrado, Cheio e Sobrecarga.
+- Distribuição automática de tarefas flexíveis.
+- Busca do primeiro horário livre dentro da janela configurada.
+- Prioridade e prazo usados para ordenar o que deve ser encaixado primeiro.
+- Hábitos pendentes contam na capacidade diária.
+- Tarefas recorrentes e compromissos fixos não são movidos automaticamente.
+- Prévia antes de aplicar a reorganização.
+- **Desfazer último planejamento** restaura dia e horário anteriores.
+
+### Tarefas flexíveis
+- Novo campo **Prazo** separado da data planejada.
+- Novo campo **Planejamento**: Flexível ou Fixo.
+- Tarefas flexíveis exibem indicador próprio nos cards e na agenda.
+- Atalho no menu `⋮` para alternar rapidamente entre tarefa fixa e flexível.
+- Prioridade automática agora considera o prazo real da tarefa.
+- Tarefas recorrentes permanecem fixas para preservar a repetição.
+
+### Home
+- Novo cartão de planejamento mostra tarefas flexíveis, capacidade diária e dias sobrecarregados.
+- Atalho direto para organizar a semana.
+
+## Recursos herdados da 2.1
+
+- Tarefas, pesquisa, filtros e subtarefas.
+- Projetos e metas.
+- Hábitos e sequências.
+- Kanban com drag-and-drop.
+- Agenda mensal e semanal.
+- Reagendamento manual por arrastar.
+- Prioridade automática.
+- Notificações com Concluir e Adiar 10 min.
+- Widget da tela inicial.
+- Estatísticas semanais.
+- Tema claro/escuro e integração com barras do sistema.
 
 ## Versão Android
 
-- `versionCode 4`
-- `versionName 2.1.0`
+- `versionCode 5`
+- `versionName 2.2.0`
 - `minSdk 24`
 - `targetSdk 35`
 - Java 17
+- Schema local: v4
 
 ## Build na nuvem
 
@@ -35,24 +62,25 @@ O workflow `.github/workflows/build-apk.yml` gera um APK release assinado sempre
 
 Artifact esperado:
 
-`Ritmo-v2.1.0-APK`
+`Ritmo-v2.2.0-APK`
 
 Arquivo:
 
-`Ritmo-v2.1.0.apk`
-
-## Widget
-
-Após instalar a 2.1.0, abra o seletor de widgets do launcher Android e procure por **Ritmo**. O widget exibe a eficiência do dia, tarefas concluídas e pendentes.
+`Ritmo-v2.2.0.apk`
 
 ## Estrutura principal
 
-- `MainActivity.java` — interface, navegação e ações.
-- `Store.java` — persistência, projetos, subtarefas e métricas.
+- `MainActivity.java` — interface, navegação, formulários e ações.
+- `Store.java` — persistência, modelos e métricas.
+- `SmartPlanner.java` — algoritmo local de distribuição e rollback do planejamento.
 - `ReminderReceiver.java` — notificações e ações rápidas.
 - `ReminderScheduler.java` — agendamento de lembretes.
 - `RitmoWidgetProvider.java` — widget da tela inicial.
 - `WeeklyBarChart.java` — gráfico semanal nativo.
+
+## Privacidade
+
+O Planejador Inteligente roda totalmente no aparelho. Nenhuma tarefa, horário ou rotina é enviada para serviços externos.
 
 ## Assinatura
 

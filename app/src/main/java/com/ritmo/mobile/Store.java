@@ -106,6 +106,7 @@ public class Store {
             if (t.category == null || t.category.trim().isEmpty()) t.category = "Pessoal";
             if (t.status == null) t.status = "todo";
             if (t.recurrence == null) t.recurrence = "none";
+            if (t.deadline == null || t.deadline.length() != 10) t.deadline = t.date;
             if (t.minutes < 0) t.minutes = 0;
             if (t.subtasks == null) t.subtasks = new ArrayList<>();
         }
@@ -138,7 +139,7 @@ public class Store {
             for (Completion item : completions) c.put(item.toJson());
             for (Project item : projects) p.put(item.toJson());
             root.put("tasks", t); root.put("goals", g); root.put("routines", r); root.put("completions", c); root.put("projects", p);
-            root.put("schemaVersion", 3);
+            root.put("schemaVersion", 4);
             prefs.edit().putString(KEY_DATA, root.toString()).apply();
             try { RitmoWidgetProvider.updateAll(appContext); } catch (Throwable ignored) { }
         } catch (Exception ignored) { }
@@ -340,8 +341,9 @@ public class Store {
 
     public static class Task {
         public long id, projectId;
-        public String title, description, date, time, priority, category, status, recurrence;
+        public String title, description, date, time, deadline, priority, category, status, recurrence;
         public int minutes, reminderMinutes;
+        public boolean flexible;
         public List<Subtask> subtasks = new ArrayList<>();
 
         public Task(long id, String title, String description, String date, String time, String priority, int minutes,
@@ -351,15 +353,25 @@ public class Store {
 
         public Task(long id, String title, String description, String date, String time, String priority, int minutes,
                     String category, String status, String recurrence, int reminderMinutes, long projectId) {
+            this(id, title, description, date, time, priority, minutes, category, status, recurrence, reminderMinutes,
+                    projectId, date, false);
+        }
+
+        public Task(long id, String title, String description, String date, String time, String priority, int minutes,
+                    String category, String status, String recurrence, int reminderMinutes, long projectId,
+                    String deadline, boolean flexible) {
             this.id = id; this.title = title; this.description = description; this.date = date; this.time = time;
             this.priority = priority; this.minutes = minutes; this.category = category; this.status = status;
             this.recurrence = recurrence; this.reminderMinutes = reminderMinutes; this.projectId = projectId;
+            this.deadline = (deadline == null || deadline.length() != 10) ? date : deadline;
+            this.flexible = flexible;
         }
 
         public String effectivePriority() {
             if (!"auto".equals(priority)) return priority;
             if ("done".equals(status)) return "low";
-            int days = daysBetween(today(), date);
+            String reference = deadline == null || deadline.length() != 10 ? date : deadline;
+            int days = daysBetween(today(), reference);
             if (days <= 1) return "high";
             if (days <= 3) return "medium";
             return "low";
@@ -370,6 +382,7 @@ public class Store {
         JSONObject toJson() throws Exception {
             JSONObject o = new JSONObject();
             o.put("id", id); o.put("title", title); o.put("description", description); o.put("date", date); o.put("time", time);
+            o.put("deadline", deadline); o.put("flexible", flexible);
             o.put("priority", priority); o.put("minutes", minutes); o.put("category", category); o.put("status", status);
             o.put("recurrence", recurrence); o.put("reminderMinutes", reminderMinutes); o.put("projectId", projectId);
             JSONArray a = new JSONArray(); for (Subtask s : subtasks) a.put(s.toJson()); o.put("subtasks", a);
@@ -377,10 +390,12 @@ public class Store {
         }
 
         static Task fromJson(JSONObject o) {
+            String date = o.optString("date", today());
             Task t = new Task(o.optLong("id", System.currentTimeMillis()), o.optString("title", "Tarefa"), o.optString("description", ""),
-                    o.optString("date", today()), o.optString("time", ""), o.optString("priority", "low"), o.optInt("minutes", 30),
+                    date, o.optString("time", ""), o.optString("priority", "low"), o.optInt("minutes", 30),
                     o.optString("category", "Pessoal"), o.optString("status", "todo"), o.optString("recurrence", "none"),
-                    o.has("reminderMinutes") ? o.optInt("reminderMinutes", -1) : -1, o.optLong("projectId", 0L));
+                    o.has("reminderMinutes") ? o.optInt("reminderMinutes", -1) : -1, o.optLong("projectId", 0L),
+                    o.optString("deadline", date), o.optBoolean("flexible", false));
             JSONArray a = o.optJSONArray("subtasks");
             if (a != null) for (int i = 0; i < a.length(); i++) t.subtasks.add(Subtask.fromJson(a.optJSONObject(i)));
             return t;

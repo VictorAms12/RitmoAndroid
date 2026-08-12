@@ -411,6 +411,12 @@ public class MainActivity extends Activity {
         body.addView(sectionHeader("Resumo", null, null));
         body.addView(metricsRow(today));
 
+        body.addView(sectionHeader("Planejamento inteligente", "Abrir planejador", v -> {
+            organizeTab = "planner";
+            showPage("organize");
+        }));
+        body.addView(smartPlanningHomeCard());
+
         body.addView(sectionHeader("Metas em andamento", "Abrir metas", v -> {
             organizeTab = "goals";
             showPage("organize");
@@ -508,6 +514,55 @@ public class MainActivity extends Activity {
         box.addView(text(value, isTablet() ? 22 : 19, TEXT, true));
         box.addView(text(label, 10, MUTED, false));
         return box;
+    }
+
+
+    private View smartPlanningHomeCard() {
+        LinearLayout card = cardBox();
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(15), dp(13), dp(15), dp(13));
+
+        SmartPlanner.Settings settings = plannerSettings();
+        int flexible = 0;
+        for (Store.Task t : store.tasks) {
+            if (!"done".equals(t.status) && t.flexible && "none".equals(t.recurrence)) flexible++;
+        }
+
+        int overloaded = 0;
+        for (int i = 0; i < 7; i++) {
+            String d = Store.addDays(Store.today(), i);
+            if (plannerLoadMinutes(d) > settings.capacityMinutes) overloaded++;
+        }
+
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout textBox = new LinearLayout(this);
+        textBox.setOrientation(LinearLayout.VERTICAL);
+        textBox.addView(text(flexible + " tarefa" + (flexible == 1 ? "" : "s") + " flexível" + (flexible == 1 ? "" : "is"), 14, TEXT, true));
+        String subtitle = overloaded > 0
+                ? overloaded + " dia(s) acima da capacidade nesta semana"
+                : "A semana está dentro da capacidade configurada";
+        textBox.addView(text(subtitle, 11, overloaded > 0 ? WARN : MUTED, false));
+        top.addView(textBox, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView capacity = text(humanMinutes(settings.capacityMinutes) + "/dia", 11, BRAND, true);
+        top.addView(capacity);
+        card.addView(top);
+
+        if (flexible > 0 || overloaded > 0) {
+            Button plan = primaryButton("Organizar minha semana");
+            LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            pp.setMargins(0, dp(12), 0, 0);
+            card.addView(plan, pp);
+            plan.setOnClickListener(v -> {
+                organizeTab = "planner";
+                showPage("organize");
+            });
+        } else {
+            TextView hint = text("Marque tarefas como flexíveis para o Ritmo poder distribuí-las automaticamente.", 10, MUTED, false);
+            hint.setPadding(0, dp(10), 0, 0);
+            card.addView(hint);
+        }
+        return card;
     }
 
     private View weeklyChartCard() {
@@ -655,6 +710,10 @@ public class MainActivity extends Activity {
         }
         String extra = ("auto".equals(t.priority) ? "Prioridade automática · " : "") + recurrenceLabel(t.recurrence) + (t.reminderMinutes >= 0 ? " · " + reminderLabel(t.reminderMinutes) : "");
         if ("auto".equals(t.priority) || !"Sem repetição".equals(recurrenceLabel(t.recurrence)) || t.reminderMinutes >= 0) center.addView(text(extra, 9, BRAND, false));
+        if (t.flexible && "none".equals(t.recurrence)) {
+            String due = t.deadline == null || t.deadline.length() != 10 ? t.date : t.deadline;
+            center.addView(text("✦ Flexível · prazo " + compactDate(due), 9, GOOD, true));
+        }
         center.setOnClickListener(v -> showTaskDialog(t, false, null));
         card.addView(center, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
@@ -820,6 +879,10 @@ public class MainActivity extends Activity {
         String status="done".equals(t.status)?"Concluído":"doing".equals(t.status)?"Em andamento":"Planejado";
         String project=t.projectId==0?"":" · "+store.projectTitle(t.projectId);
         event.addView(text(t.category+project+" · "+humanMinutes(t.minutes)+" · "+status,10,MUTED,false));
+        if(t.flexible && "none".equals(t.recurrence)){
+            String due=t.deadline==null||t.deadline.length()!=10?t.date:t.deadline;
+            event.addView(text("✦ Flexível · prazo "+compactDate(due),9,GOOD,true));
+        }
         if("week".equals(agendaMode)){TextView hint=text("Segure o ícone ⠿ e solte em outro dia da semana",9,BRAND,false);hint.setPadding(0,dp(4),0,0);event.addView(hint);}
         event.setOnClickListener(v->showTaskDialog(t,false,null)); event.setOnLongClickListener(v->{showTaskActions(t);return true;});
         row.addView(event,new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f)); return row;
@@ -829,7 +892,8 @@ public class MainActivity extends Activity {
         LinearLayout body=body();
         body.addView(sectionHeader("Organização",null,null));
         body.addView(organizeTabs());
-        if("projects".equals(organizeTab)) body.addView(projectsSection());
+        if("planner".equals(organizeTab)) body.addView(plannerSection());
+        else if("projects".equals(organizeTab)) body.addView(projectsSection());
         else if("goals".equals(organizeTab)) body.addView(goalsSection());
         else if("habits".equals(organizeTab)) body.addView(habitsSection());
         else if("stats".equals(organizeTab)) body.addView(statsSection());
@@ -840,7 +904,7 @@ public class MainActivity extends Activity {
     private View organizeTabs(){
         HorizontalScrollView hs=new HorizontalScrollView(this); hs.setHorizontalScrollBarEnabled(false);
         LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        String[][] tabs={{"kanban","Kanban"},{"projects","Projetos"},{"goals","Metas"},{"habits","Hábitos"},{"stats","Estatísticas"}};
+        String[][] tabs={{"kanban","Kanban"},{"planner","Planejador"},{"projects","Projetos"},{"goals","Metas"},{"habits","Hábitos"},{"stats","Estatísticas"}};
         for(String[] t:tabs){ Button b=chip(t[1],organizeTab.equals(t[0])); b.setOnClickListener(v->{organizeTab=t[0];showPage("organize");}); row.addView(b); }
         hs.addView(row); hs.setPadding(0,0,0,dp(10)); return hs;
     }
@@ -1006,6 +1070,307 @@ public class MainActivity extends Activity {
         card.addView(text("Total concluído · "+humanMinutes(total),11,MUTED,false));return card;
     }
 
+
+    private SmartPlanner.Settings plannerSettings() {
+        android.content.SharedPreferences prefs = getSharedPreferences("ritmo_planner_settings", MODE_PRIVATE);
+        return new SmartPlanner.Settings(
+                prefs.getInt("startHour", 8),
+                prefs.getInt("endHour", 22),
+                prefs.getInt("capacityMinutes", 360),
+                prefs.getBoolean("includeWeekend", true)
+        );
+    }
+
+    private int plannerLoadMinutes(String date) {
+        int total = 0;
+        for (Store.Task t : store.tasks) {
+            if (!"done".equals(t.status) && date.equals(t.date)) total += Math.max(0, t.minutes);
+        }
+        for (Store.Routine r : store.routines) {
+            if (r.dueOn(date) && !r.doneOn(date)) total += Math.max(0, r.minutes);
+        }
+        return total;
+    }
+
+    private int flexibleOpenCount() {
+        int total = 0;
+        for (Store.Task t : store.tasks) {
+            if (!"done".equals(t.status) && t.flexible && "none".equals(t.recurrence)) total++;
+        }
+        return total;
+    }
+
+    private View plannerSection() {
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+
+        SmartPlanner.Settings settings = plannerSettings();
+        int flexible = flexibleOpenCount();
+        int overloaded = 0;
+        for (int i = 0; i < 7; i++) {
+            if (plannerLoadMinutes(Store.addDays(Store.today(), i)) > settings.capacityMinutes) overloaded++;
+        }
+
+        LinearLayout hero = cardBox();
+        hero.setOrientation(LinearLayout.VERTICAL);
+        hero.setPadding(dp(16), dp(15), dp(16), dp(15));
+        LinearLayout heroTop = new LinearLayout(this);
+        heroTop.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout heroText = new LinearLayout(this);
+        heroText.setOrientation(LinearLayout.VERTICAL);
+        heroText.addView(text("Planejamento inteligente", 17, TEXT, true));
+        heroText.addView(text("Distribui tarefas flexíveis sem mexer em compromissos fixos.", 11, MUTED, false));
+        heroTop.addView(heroText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        ImageView magic = new ImageView(this);
+        magic.setImageResource(R.drawable.ic_auto);
+        magic.setColorFilter(BRAND);
+        heroTop.addView(magic, new LinearLayout.LayoutParams(dp(28), dp(28)));
+        hero.addView(heroTop);
+
+        LinearLayout metrics = new LinearLayout(this);
+        metrics.setOrientation(LinearLayout.HORIZONTAL);
+        metrics.setPadding(0, dp(13), 0, 0);
+        metrics.addView(metric(String.valueOf(flexible), "Flexíveis"), weightedMargin(0, 4));
+        metrics.addView(metric(humanMinutes(settings.capacityMinutes), "Capacidade/dia"), weightedMargin(4, 4));
+        metrics.addView(metric(String.valueOf(overloaded), "Sobrecargas"), weightedMargin(4, 0));
+        hero.addView(metrics);
+
+        Button plan = primaryButton("Distribuir semana automaticamente");
+        plan.setEnabled(flexible > 0);
+        plan.setAlpha(flexible > 0 ? 1f : .55f);
+        LinearLayout.LayoutParams planParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        planParams.setMargins(0, dp(13), 0, 0);
+        hero.addView(plan, planParams);
+        plan.setOnClickListener(v -> runSmartPlanner());
+
+        Button settingsButton = secondaryButton("Configurar disponibilidade");
+        LinearLayout.LayoutParams setParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        setParams.setMargins(0, dp(8), 0, 0);
+        hero.addView(settingsButton, setParams);
+        settingsButton.setOnClickListener(v -> showPlannerSettingsDialog());
+
+        if (SmartPlanner.canUndo(this)) {
+            Button undo = secondaryButton("↶ Desfazer último planejamento");
+            LinearLayout.LayoutParams undoParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            undoParams.setMargins(0, dp(7), 0, 0);
+            hero.addView(undo, undoParams);
+            undo.setOnClickListener(v -> undoLastPlan());
+        }
+        wrap.addView(hero, marginBottom(dp(12)));
+
+        TextView weekTitle = text("CARGA DOS PRÓXIMOS 7 DIAS", 11, MUTED, true);
+        weekTitle.setPadding(dp(3), dp(8), 0, dp(8));
+        wrap.addView(weekTitle);
+
+        LinearLayout weekCard = cardBox();
+        weekCard.setOrientation(LinearLayout.VERTICAL);
+        weekCard.setPadding(dp(12), dp(8), dp(12), dp(8));
+        for (int i = 0; i < 7; i++) {
+            String date = Store.addDays(Store.today(), i);
+            weekCard.addView(plannerDayRow(date, settings.capacityMinutes));
+            if (i < 6) weekCard.addView(divider());
+        }
+        wrap.addView(weekCard, marginBottom(dp(12)));
+
+        TextView flexTitle = text("TAREFAS FLEXÍVEIS", 11, MUTED, true);
+        flexTitle.setPadding(dp(3), dp(8), 0, dp(8));
+        wrap.addView(flexTitle);
+
+        LinearLayout flexCard = cardBox();
+        flexCard.setOrientation(LinearLayout.VERTICAL);
+        flexCard.setPadding(dp(13), dp(8), dp(13), dp(8));
+        List<Store.Task> flex = new ArrayList<>();
+        for (Store.Task t : store.tasks) {
+            if (!"done".equals(t.status) && t.flexible && "none".equals(t.recurrence)) flex.add(t);
+        }
+        Collections.sort(flex, Comparator.comparing(t -> safe(t.deadline, t.date)));
+        if (flex.isEmpty()) {
+            flexCard.addView(text("Nenhuma tarefa flexível. Ao criar ou editar uma tarefa, escolha “Flexível” em Planejamento.", 12, MUTED, false));
+        } else {
+            int shown = 0;
+            for (Store.Task t : flex) {
+                if (shown++ >= 8) break;
+                LinearLayout row = new LinearLayout(this);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setPadding(0, dp(8), 0, dp(8));
+                LinearLayout info = new LinearLayout(this);
+                info.setOrientation(LinearLayout.VERTICAL);
+                info.addView(text(t.title, 13, TEXT, true));
+                String deadline = t.deadline == null || t.deadline.length() != 10 ? t.date : t.deadline;
+                info.addView(text("Prazo " + compactDate(deadline) + " · " + humanMinutes(t.minutes) + " · " + priorityLabel(t.effectivePriority()), 10, MUTED, false));
+                row.addView(info, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                TextView day = text(compactDate(t.date), 10, BRAND, true);
+                row.addView(day);
+                row.setOnClickListener(v -> showTaskDialog(t, false, null));
+                flexCard.addView(row);
+                if (shown < Math.min(8, flex.size())) flexCard.addView(divider());
+            }
+        }
+        wrap.addView(flexCard, marginBottom(dp(12)));
+
+        LinearLayout note = cardBox();
+        note.setOrientation(LinearLayout.VERTICAL);
+        note.setPadding(dp(14), dp(13), dp(14), dp(13));
+        note.addView(text("Como o Ritmo distribui", 13, TEXT, true));
+        note.addView(text("Prioridade e prazo vêm primeiro. Depois, o app procura o dia menos carregado e o primeiro horário livre dentro da sua disponibilidade. Hábitos também contam na carga diária. Tarefas recorrentes e compromissos fixos nunca são movidos automaticamente.", 11, MUTED, false));
+        wrap.addView(note);
+        return wrap;
+    }
+
+    private View plannerDayRow(String date, int capacity) {
+        int load = plannerLoadMinutes(date);
+        int percent = capacity <= 0 ? 0 : Math.round(load * 100f / capacity);
+        int color = percent > 100 ? BAD : percent >= 80 ? WARN : GOOD;
+        String status = percent > 100 ? "Sobrecarga" : percent >= 80 ? "Cheio" : percent >= 50 ? "Equilibrado" : "Leve";
+
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(9), 0, dp(9));
+
+        LinearLayout day = new LinearLayout(this);
+        day.setOrientation(LinearLayout.VERTICAL);
+        day.addView(text(weekdayShort(date), 10, MUTED, true));
+        day.addView(text(dayMonth(date), 14, TEXT, true));
+        row.addView(day, new LinearLayout.LayoutParams(dp(72), ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        LinearLayout middle = new LinearLayout(this);
+        middle.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout labels = new LinearLayout(this);
+        labels.addView(text(humanMinutes(load) + " / " + humanMinutes(capacity), 11, TEXT, true), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        labels.addView(text(status, 10, color, true));
+        middle.addView(labels);
+        ProgressBar pb = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        pb.setMax(100);
+        pb.setProgress(Math.min(100, percent));
+        pb.setProgressTintList(ColorStateList.valueOf(color));
+        pb.setProgressBackgroundTintList(ColorStateList.valueOf(PANEL2));
+        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(7));
+        pp.setMargins(0, dp(6), 0, 0);
+        middle.addView(pb, pp);
+        row.addView(middle, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        row.setOnClickListener(v -> {
+            selectedAgendaDate = date;
+            syncMonthToSelected();
+            agendaMode = "week";
+            showPage("agenda");
+        });
+        return row;
+    }
+
+    private void showPlannerSettingsDialog() {
+        SmartPlanner.Settings current = plannerSettings();
+        LinearLayout form = dialogForm();
+
+        String[] capacities = {"2 h", "3 h", "4 h", "5 h", "6 h", "7 h", "8 h", "10 h"};
+        int[] capacityValues = {120, 180, 240, 300, 360, 420, 480, 600};
+        Spinner capacity = spinner(capacities);
+        int capIndex = 4;
+        for (int i = 0; i < capacityValues.length; i++) if (capacityValues[i] == current.capacityMinutes) capIndex = i;
+        capacity.setSelection(capIndex);
+
+        String[] startHours = {"05:00","06:00","07:00","08:00","09:00","10:00","11:00","12:00"};
+        String[] endHours = {"16:00","17:00","18:00","19:00","20:00","21:00","22:00","23:00","24:00"};
+        Spinner start = spinner(startHours);
+        Spinner end = spinner(endHours);
+        setSpinner(start, String.format(Locale.US, "%02d:00", current.startHour));
+        setSpinner(end, String.format(Locale.US, "%02d:00", current.endHour));
+
+        Spinner weekend = spinner(new String[]{"Seg a Dom", "Somente Seg a Sex"});
+        setSpinner(weekend, current.includeWeekend ? "Seg a Dom" : "Somente Seg a Sex");
+
+        form.addView(fieldLabel("CAPACIDADE PRODUTIVA POR DIA"));
+        form.addView(capacity);
+        form.addView(formRow(fieldBox("INÍCIO", start), fieldBox("FIM", end)));
+        form.addView(fieldLabel("DIAS DISPONÍVEIS"));
+        form.addView(weekend);
+
+        TextView tip = text("Capacidade produtiva não precisa ser igual ao tempo acordado. Use apenas as horas que você realmente quer reservar para tarefas, estudos e projetos.", 10, MUTED, false);
+        tip.setPadding(0, dp(10), 0, 0);
+        form.addView(tip);
+
+        AlertDialog dlg = new AlertDialog.Builder(this)
+                .setTitle("Disponibilidade do planejador")
+                .setView(form)
+                .setNegativeButton("Cancelar", null)
+                .setPositiveButton("Salvar", null)
+                .create();
+        dlg.show();
+        dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            int startHour = Integer.parseInt(String.valueOf(start.getSelectedItem()).substring(0, 2));
+            String endValue = String.valueOf(end.getSelectedItem());
+            int endHour = Integer.parseInt(endValue.substring(0, 2));
+            if (endHour == 0) endHour = 24;
+            if (endHour <= startHour) {
+                Toast.makeText(this, "O horário final precisa ser depois do inicial.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            int capacityMinutes = capacityValues[capacity.getSelectedItemPosition()];
+            boolean includeWeekend = weekend.getSelectedItemPosition() == 0;
+            getSharedPreferences("ritmo_planner_settings", MODE_PRIVATE).edit()
+                    .putInt("startHour", startHour)
+                    .putInt("endHour", endHour)
+                    .putInt("capacityMinutes", capacityMinutes)
+                    .putBoolean("includeWeekend", includeWeekend)
+                    .apply();
+            dlg.dismiss();
+            organizeTab = "planner";
+            showPage("organize");
+        });
+    }
+
+    private void runSmartPlanner() {
+        SmartPlanner.Settings settings = plannerSettings();
+        SmartPlanner.Result result = SmartPlanner.plan(store, settings);
+        if (result.isEmpty()) {
+            Toast.makeText(this, "Não há tarefas flexíveis para distribuir.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        StringBuilder preview = new StringBuilder();
+        preview.append(result.eligibleTasks).append(" tarefa(s) flexível(is) serão analisadas");
+        preview.append("\n").append(result.movedTasks).append(" terão dia ou horário ajustado.");
+        if (result.overloadedDays > 0) preview.append("\n\nAinda restarão ").append(result.overloadedDays).append(" dia(s) acima da capacidade.");
+        preview.append("\n\n");
+        int shown = 0;
+        for (SmartPlanner.Assignment a : result.assignments) {
+            if (shown++ >= 5) break;
+            preview.append("• ").append(a.task.title).append("\n  ")
+                    .append(compactDate(a.newDate))
+                    .append(a.newTime.isEmpty() ? " · sem horário livre" : " · " + a.newTime)
+                    .append(a.overCapacity ? " · atenção" : "")
+                    .append("\n");
+        }
+        if (result.assignments.size() > 5) preview.append("… e mais ").append(result.assignments.size() - 5).append(" tarefa(s).");
+
+        new AlertDialog.Builder(this)
+                .setTitle("Aplicar planejamento?")
+                .setMessage(preview.toString())
+                .setNegativeButton("Cancelar", null)
+                .setPositiveButton("Aplicar", (d, w) -> {
+                    SmartPlanner.apply(this, store, result);
+                    for (SmartPlanner.Assignment a : result.assignments) ReminderScheduler.schedule(this, a.task);
+                    Toast.makeText(this, "Semana reorganizada. Você pode desfazer enquanto não fizer outro planejamento.", Toast.LENGTH_LONG).show();
+                    organizeTab = "planner";
+                    showPage("organize");
+                })
+                .show();
+    }
+
+    private void undoLastPlan() {
+        new AlertDialog.Builder(this)
+                .setTitle("Desfazer planejamento?")
+                .setMessage("As tarefas voltarão aos dias e horários em que estavam antes da última distribuição automática.")
+                .setNegativeButton("Cancelar", null)
+                .setPositiveButton("Desfazer", (d, w) -> {
+                    int restored = SmartPlanner.undo(this, store);
+                    try { ReminderScheduler.rescheduleAll(this, store); } catch (Throwable ignored) { }
+                    Toast.makeText(this, restored + " tarefa(s) restaurada(s).", Toast.LENGTH_SHORT).show();
+                    organizeTab = "planner";
+                    showPage("organize");
+                })
+                .show();
+    }
+
     private View insightsCard(){
         LinearLayout card=cardBox();card.setOrientation(LinearLayout.VERTICAL);card.setPadding(dp(15),dp(14),dp(15),dp(14));
         int pending=0,high=0,todayMin=0;for(Store.Task t:store.tasks){if(!"done".equals(t.status)){pending++;if("high".equals(t.effectivePriority()))high++;}if(Store.today().equals(t.date))todayMin+=t.minutes;}
@@ -1032,11 +1397,13 @@ public class MainActivity extends Activity {
         ScrollView scroll=new ScrollView(this); LinearLayout form=dialogForm(); scroll.addView(form);
         EditText title=input("Título");
         EditText description=inputMulti("Descrição / observações");
-        EditText date=input("Data"); date.setFocusable(false);
+        EditText date=input("Data planejada"); date.setFocusable(false);
         EditText time=input("Horário"); time.setFocusable(false);
+        EditText deadline=input("Prazo"); deadline.setFocusable(false);
         EditText minutes=input("Minutos"); minutes.setInputType(InputType.TYPE_CLASS_NUMBER);
         Spinner category=spinner(new String[]{"Estudos","Trabalho","Pessoal","Projeto","Saúde","Financeiro"});
         Spinner priority=spinner(new String[]{"Automática","Baixa","Média","Alta"});
+        Spinner planning=spinner(new String[]{"Flexível · Ritmo pode mover","Fixo · não mover"});
         Spinner recurrence=spinner(new String[]{"Sem repetição","Todos os dias","Seg a Sex","Semanal","Mensal"});
         Spinner reminder=spinner(new String[]{"Sem lembrete","Na hora","10 min antes","30 min antes","1 h antes","1 dia antes"});
         Spinner project=spinner(projectLabels());
@@ -1044,9 +1411,14 @@ public class MainActivity extends Activity {
         form.addView(fieldLabel("TÍTULO")); form.addView(title);
         form.addView(fieldLabel("DESCRIÇÃO")); form.addView(description);
         form.addView(formRow(fieldBox("DATA",date),fieldBox("HORÁRIO",time)));
-        form.addView(formRow(fieldBox("DURAÇÃO",minutes),fieldBox("PRIORIDADE",priority)));
+        form.addView(formRow(fieldBox("PRAZO",deadline),fieldBox("DURAÇÃO",minutes)));
         form.addView(formRow(fieldBox("CATEGORIA",category),fieldBox("PROJETO",project)));
+        form.addView(formRow(fieldBox("PRIORIDADE",priority),fieldBox("PLANEJAMENTO",planning)));
         form.addView(formRow(fieldBox("REPETIÇÃO",recurrence),fieldBox("LEMBRETE",reminder)));
+
+        TextView plannerHint=text("Flexível: o Planejador pode mudar o dia e horário sem ultrapassar o prazo. Tarefas recorrentes são mantidas como fixas.",9,MUTED,false);
+        plannerHint.setPadding(dp(2),dp(5),dp(2),dp(8));
+        form.addView(plannerHint);
 
         EditText newSubtasks = inputMulti("Uma subtarefa por linha");
         if(editing){
@@ -1057,13 +1429,21 @@ public class MainActivity extends Activity {
             form.addView(fieldLabel("SUBTAREFAS (OPCIONAL)"));form.addView(newSubtasks);
         }
 
-        String initialDate=forcedDate!=null?forcedDate:Store.today(); date.setText(initialDate); minutes.setText(eventMode?"60":"30");
+        String initialDate=forcedDate!=null?forcedDate:Store.today();
+        date.setText(initialDate);
+        deadline.setText(initialDate);
+        minutes.setText(eventMode?"60":"30");
         setSpinner(priority,"Automática");
+        setSpinner(planning,eventMode?"Fixo · não mover":"Flexível · Ritmo pode mover");
         if(editing){
             title.setText(existing.title);description.setText(existing.description);date.setText(existing.date);time.setText(existing.time);minutes.setText(String.valueOf(existing.minutes));
-            setSpinner(category,existing.category);setSpinner(priority,priorityLabel(existing.priority));setSpinner(recurrence,recurrenceLabel(existing.recurrence));setSpinner(reminder,reminderLabel(existing.reminderMinutes));setSpinner(project,projectLabel(existing.projectId));
+            deadline.setText(existing.deadline==null||existing.deadline.length()!=10?existing.date:existing.deadline);
+            setSpinner(category,existing.category);setSpinner(priority,priorityLabel(existing.priority));setSpinner(planning,existing.flexible?"Flexível · Ritmo pode mover":"Fixo · não mover");
+            setSpinner(recurrence,recurrenceLabel(existing.recurrence));setSpinner(reminder,reminderLabel(existing.reminderMinutes));setSpinner(project,projectLabel(existing.projectId));
         }
-        date.setOnClickListener(v->pickDate(date));time.setOnClickListener(v->pickTime(time));
+        date.setOnClickListener(v->pickDate(date));
+        time.setOnClickListener(v->pickTime(time));
+        deadline.setOnClickListener(v->pickDate(deadline));
 
         AlertDialog.Builder builder=new AlertDialog.Builder(this).setTitle(editing?"Editar tarefa":(eventMode?"Novo compromisso":"Nova tarefa")).setView(scroll).setNegativeButton("Cancelar",null).setPositiveButton("Salvar",null);
         if(editing) builder.setNeutralButton("Excluir",null);
@@ -1072,9 +1452,20 @@ public class MainActivity extends Activity {
         if(editing){Button del=dlg.getButton(AlertDialog.BUTTON_NEUTRAL);del.setTextColor(BAD);del.setOnClickListener(v->{dlg.dismiss();confirmDeleteTask(existing);});}
         dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
             String ttl=title.getText().toString().trim();if(ttl.isEmpty()){title.setError("Informe um título");return;}
+            String plannedDate=date.getText().toString();
+            String dueDate=deadline.getText().toString();
+            if(dueDate==null||dueDate.length()!=10)dueDate=plannedDate;
+            if(dueDate.compareTo(plannedDate)<0){deadline.setError("O prazo não pode ser anterior à data planejada");Toast.makeText(this,"Ajuste o prazo da tarefa.",Toast.LENGTH_SHORT).show();return;}
             int mins=Math.max(0,parseInt(minutes.getText().toString(),30));long projectId=projectIdFromLabel(String.valueOf(project.getSelectedItem()));
-            if(editing){existing.title=ttl;existing.description=description.getText().toString().trim();existing.date=date.getText().toString();existing.time=time.getText().toString();existing.minutes=mins;existing.category=String.valueOf(category.getSelectedItem());existing.projectId=projectId;existing.priority=priorityValueFromLabel(String.valueOf(priority.getSelectedItem()));existing.recurrence=recurrenceValue(String.valueOf(recurrence.getSelectedItem()));existing.reminderMinutes=reminderValue(String.valueOf(reminder.getSelectedItem()));store.save();ReminderScheduler.schedule(this,existing);}
-            else{Store.Task t=new Store.Task(System.currentTimeMillis(),ttl,description.getText().toString().trim(),date.getText().toString(),time.getText().toString(),priorityValueFromLabel(String.valueOf(priority.getSelectedItem())),mins,String.valueOf(category.getSelectedItem()),"todo",recurrenceValue(String.valueOf(recurrence.getSelectedItem())),reminderValue(String.valueOf(reminder.getSelectedItem())),projectId);addSubtasksFromLines(t,newSubtasks.getText().toString());store.tasks.add(t);store.save();ReminderScheduler.schedule(this,t);}
+            String recurrenceValue=recurrenceValue(String.valueOf(recurrence.getSelectedItem()));
+            boolean flexible=planning.getSelectedItemPosition()==0 && "none".equals(recurrenceValue);
+            if(planning.getSelectedItemPosition()==0 && !"none".equals(recurrenceValue))Toast.makeText(this,"Tarefas recorrentes ficam fixas para preservar a repetição.",Toast.LENGTH_LONG).show();
+            if(editing){
+                existing.title=ttl;existing.description=description.getText().toString().trim();existing.date=plannedDate;existing.time=time.getText().toString();existing.deadline=dueDate;existing.flexible=flexible;existing.minutes=mins;existing.category=String.valueOf(category.getSelectedItem());existing.projectId=projectId;existing.priority=priorityValueFromLabel(String.valueOf(priority.getSelectedItem()));existing.recurrence=recurrenceValue;existing.reminderMinutes=reminderValue(String.valueOf(reminder.getSelectedItem()));store.save();ReminderScheduler.schedule(this,existing);
+            }else{
+                Store.Task t=new Store.Task(System.currentTimeMillis(),ttl,description.getText().toString().trim(),plannedDate,time.getText().toString(),priorityValueFromLabel(String.valueOf(priority.getSelectedItem())),mins,String.valueOf(category.getSelectedItem()),"todo",recurrenceValue,reminderValue(String.valueOf(reminder.getSelectedItem())),projectId,dueDate,flexible);
+                addSubtasksFromLines(t,newSubtasks.getText().toString());store.tasks.add(t);store.save();ReminderScheduler.schedule(this,t);
+            }
             dlg.dismiss();showPage(currentPage);
         });
     }
@@ -1111,13 +1502,18 @@ public class MainActivity extends Activity {
     }
 
     private void showTaskActions(Store.Task t){
-        String[] actions={"Editar","Subtarefas ("+t.completedSubtasks()+"/"+t.subtasks.size()+")","Mover para A fazer","Mover para Em andamento","Mover para Concluído","Excluir"};
+        String planningAction = !"none".equals(t.recurrence) ? "Recorrente · planejamento fixo" : (t.flexible ? "Marcar como fixa" : "Marcar como flexível");
+        String[] actions={"Editar","Subtarefas ("+t.completedSubtasks()+"/"+t.subtasks.size()+")",planningAction,"Mover para A fazer","Mover para Em andamento","Mover para Concluído","Excluir"};
         new AlertDialog.Builder(this).setTitle(t.title).setItems(actions,(d,w)->{
             if(w==0)showTaskDialog(t,false,null);
             else if(w==1)showSubtaskDialog(t);
-            else if(w==2){store.setTaskStatus(t,"todo");ReminderScheduler.schedule(this,t);showPage(currentPage);}
-            else if(w==3){store.setTaskStatus(t,"doing");ReminderScheduler.schedule(this,t);showPage(currentPage);}
-            else if(w==4){store.setTaskStatus(t,"done");ReminderScheduler.cancel(this,t.id);showPage(currentPage);}
+            else if(w==2){
+                if(!"none".equals(t.recurrence))Toast.makeText(this,"Tarefas recorrentes permanecem fixas.",Toast.LENGTH_SHORT).show();
+                else{t.flexible=!t.flexible;if(t.deadline==null||t.deadline.length()!=10)t.deadline=t.date;store.save();Toast.makeText(this,t.flexible?"Tarefa marcada como flexível.":"Tarefa marcada como fixa.",Toast.LENGTH_SHORT).show();showPage(currentPage);}
+            }
+            else if(w==3){store.setTaskStatus(t,"todo");ReminderScheduler.schedule(this,t);showPage(currentPage);}
+            else if(w==4){store.setTaskStatus(t,"doing");ReminderScheduler.schedule(this,t);showPage(currentPage);}
+            else if(w==5){store.setTaskStatus(t,"done");ReminderScheduler.cancel(this,t.id);showPage(currentPage);}
             else confirmDeleteTask(t);
         }).show();
     }

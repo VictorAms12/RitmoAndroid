@@ -1,59 +1,44 @@
 # Changelog
 
-## 2.1.0 — 2026-08-11
+## 2.2.0 — 2026-08-12
 
-### UX e correções
-- Botão **Excluir** visível no editor de tarefas.
-- Exclusão também disponível diretamente nos editores de metas, hábitos e projetos.
-- Formulários compactados para reduzir rolagem e melhorar uso em telas pequenas.
-- Barra superior agora se adapta à tela atual.
-- Ajustes de integração com status bar e navigation bar em tema claro/escuro.
-- Botão de opções `⋮` nos cards de tarefa e Kanban.
+### Planejamento inteligente
+- Nova aba **Planejador** em Organização.
+- Distribuição automática das tarefas flexíveis pelos próximos sete dias.
+- Algoritmo considera prioridade, prazo, duração e carga diária.
+- Procura horários livres dentro da janela configurada.
+- Hábitos pendentes passam a contar na carga produtiva do dia.
+- Compromissos fixos e tarefas recorrentes não são movidos automaticamente.
+- Prévia da redistribuição antes de aplicar.
+- Desfazer último planejamento com restauração de data e horário.
+
+### Disponibilidade
+- Capacidade produtiva diária configurável de 2h a 10h.
+- Janela de horário inicial/final configurável.
+- Opção de incluir fins de semana ou trabalhar apenas com dias úteis.
+- Visão da carga dos próximos sete dias com indicadores de sobrecarga.
 
 ### Tarefas
-- Busca instantânea por título, descrição, categoria ou projeto.
-- Filtros de estado e categoria.
-- Prioridade automática baseada na proximidade do prazo.
-- Subtarefas com criação, conclusão e exclusão.
-- Indicador de progresso das subtarefas nos cards.
+- Novo campo `deadline` / Prazo.
+- Novo estado `flexible` para diferenciar tarefas movíveis de compromissos fixos.
+- Prioridade automática passa a usar o prazo em vez de apenas a data planejada.
+- Indicador visual de tarefa flexível nos cards e na agenda.
+- Alternância rápido Fixo/Flexível no menu de ações.
+- Tarefas recorrentes são protegidas contra redistribuição automática.
 
-### Projetos
-- Nova área de Projetos.
-- Nome, descrição e prazo.
-- Tarefas vinculadas ao projeto.
-- Progresso automático calculado pelas tarefas concluídas.
-- Atalho do projeto para abrir suas tarefas.
-
-### Kanban
-- Arrastar e soltar cards entre A fazer, Em andamento e Concluído.
-- Menu de ações separado do gesto de arrastar.
-- Progresso de subtarefas dentro dos cards.
-
-### Agenda
-- Planejamento semanal redesenhado em uma lista compacta de sete dias.
-- Carga diária, quantidade de tarefas e percentual de conclusão por dia.
-- Reagendamento por arrastar uma tarefa e soltar em outro dia da semana.
-
-### Notificações
-- Ação rápida **Concluir**.
-- Ação rápida **Adiar 10 min**.
-
-### Widget
-- Widget de tela inicial com eficiência diária e contagem de pendências.
-
-### Estatísticas
-- Taxa de conclusão dos últimos sete dias.
-- Quantidade de tarefas atrasadas.
-- Melhor dia da semana.
-- Tempo concluído e distribuição por categoria.
+### Home
+- Novo resumo de planejamento inteligente.
+- Indicador de tarefas flexíveis, capacidade diária e dias sobrecarregados.
 
 ### Dados
-- Schema local atualizado para v3.
-- Migração compatível com dados das versões 2.0.x.
+- Schema local atualizado para v4.
+- Migração automática: tarefas das versões anteriores continuam fixas por segurança e recebem o prazo igual à data atual da tarefa.
+
+## 2.1.0
+- Pesquisa, subtarefas, projetos, prioridade automática, Kanban drag-and-drop, agenda semanal, ações de notificação, widget e estatísticas avançadas.
 
 ## 2.0.1
-- Correções de estabilidade de inicialização.
-- Modo de recuperação e sanitização de dados migrados.
+- Correções de estabilidade de inicialização e modo de recuperação.
 
 ## 2.0.0
 - Calendário mensal, agenda semanal, recorrência, lembretes, hábitos, metas e estatísticas iniciais.
