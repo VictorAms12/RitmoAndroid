@@ -2,22 +2,24 @@
     <style name="Theme.Ritmo" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:colorAccent">#0F5F4D</item>
+        <item name="android:colorAccent">#6366F1</item>
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:statusBarColor">#F4F7F5</item>
-        <item name="android:navigationBarColor">#091C17</item>
-        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:statusBarColor">#F8F9FA</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:windowLightNavigationBar">true</item>
         <item name="android:windowNoTitle">true</item>
+        <item name="android:windowDisablePreview">false</item>
     </style>
 
     <style name="Theme.Ritmo.Dark" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:colorAccent">#57D8AA</item>
+        <item name="android:colorAccent">#818CF8</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:statusBarColor">#071612</item>
-        <item name="android:navigationBarColor">#06110E</item>
+        <item name="android:statusBarColor">#0F172A</item>
+        <item name="android:navigationBarColor">#111827</item>
         <item name="android:windowLightNavigationBar">false</item>
         <item name="android:windowNoTitle">true</item>
+        <item name="android:windowDisablePreview">false</item>
     </style>
 </resources>

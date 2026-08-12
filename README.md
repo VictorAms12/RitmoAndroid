@@ -1,87 +1,107 @@
-# Ritmo 2.2.0 — Android nativo
+# Ritmo 2.3.0 — Android nativo
 
-Ritmo é um app Android de rotina e produtividade feito em Java nativo, offline-first e sem WebView.
+Ritmo é um aplicativo Android offline-first para rotina, tarefas, hábitos, agenda, planejamento e produtividade. A versão 2.3.0 mantém a base funcional da 2.2 e faz uma evolução ampla de experiência, foco, estatísticas e acessibilidade.
 
-## Destaques da 2.2.0
+## Destaques da 2.3.0
 
-A 2.2.0 introduz o **Planejamento Inteligente local**. O app agora consegue distribuir tarefas flexíveis pelos próximos sete dias levando em conta prazo, prioridade, duração, carga já existente, hábitos e horários disponíveis.
+### Redesign e Design System
+- Paleta Light com fundo `#F8F9FA`, cards brancos e texto `#111827`.
+- Paleta Dark baseada em `#0F172A` / `#1E293B`, sem preto absoluto como fundo principal.
+- Índigo/violeta como ação primária, menta para sucesso e âmbar para alertas/foco.
+- Cards com raio de aproximadamente 16dp, botões de 12dp e espaçamento baseado em grid de 8dp.
+- Navegação inferior redesenhada para **Hoje / Calendário / Progresso / Ajustes**, com FAB central para criação rápida.
+- Cabeçalho contextual com cumprimento, data, versão e atalho de tema.
+- Integração edge-to-edge com barras de status/navegação e contraste de ícones conforme o tema.
 
-### Planejador inteligente
-- Nova aba **Organizar → Planejador**.
-- Configuração de capacidade produtiva diária.
-- Configuração do horário disponível para execução de tarefas.
-- Opção de planejar de segunda a domingo ou somente dias úteis.
-- Indicador de carga para cada um dos próximos sete dias.
-- Estados visuais: Leve, Equilibrado, Cheio e Sobrecarga.
-- Distribuição automática de tarefas flexíveis.
-- Busca do primeiro horário livre dentro da janela configurada.
-- Prioridade e prazo usados para ordenar o que deve ser encaixado primeiro.
-- Hábitos pendentes contam na capacidade diária.
-- Tarefas recorrentes e compromissos fixos não são movidos automaticamente.
-- Prévia antes de aplicar a reorganização.
-- **Desfazer último planejamento** restaura dia e horário anteriores.
+### Home / Hoje
+- Novo resumo diário com anel de progresso combinado de tarefas + hábitos.
+- Streak e minutos de foco visíveis no resumo.
+- Feed do dia dividido em **Manhã / Tarde / Noite**.
+- Empty state amigável quando não há rotina no dia.
+- Card para replanejar pendências flexíveis atrasadas.
+- Atalho de modo Foco e resumo de hábitos/metas.
 
-### Tarefas flexíveis
-- Novo campo **Prazo** separado da data planejada.
-- Novo campo **Planejamento**: Flexível ou Fixo.
-- Tarefas flexíveis exibem indicador próprio nos cards e na agenda.
-- Atalho no menu `⋮` para alternar rapidamente entre tarefa fixa e flexível.
-- Prioridade automática agora considera o prazo real da tarefa.
-- Tarefas recorrentes permanecem fixas para preservar a repetição.
+### Modo Foco / Pomodoro
+- Nova `FocusActivity` dedicada.
+- Sessões de 25 min, 50 min ou duração da tarefa.
+- Pausar, continuar e finalizar sessão.
+- Opção de concluir a tarefa ao terminar o foco.
+- Sessão ativa persistida para retomada após sair e voltar ao app.
+- Registro do tempo realmente focado para as estatísticas.
 
-### Home
-- Novo cartão de planejamento mostra tarefas flexíveis, capacidade diária e dias sobrecarregados.
-- Atalho direto para organizar a semana.
+### Hábitos
+- Horário, categoria, cor e lembrete por hábito.
+- Frequências diária, dias úteis, semanal ou **dias específicos da semana**.
+- Lembretes locais próprios para hábitos, com reagendamento após reiniciar o Android.
+- Feedback tátil/visual na conclusão e cálculo de sequência.
 
-## Recursos herdados da 2.1
+### Progresso e estatísticas
+- Taxa de conclusão semanal.
+- Eficiência de execução real (tempo focado x planejado).
+- Consistência de 30 dias em heatmap.
+- Gráfico de sessões de foco.
+- Gráfico semanal de produtividade e distribuição por categoria.
+- Indicadores de atrasos, melhor dia e média de consistência.
 
-- Tarefas, pesquisa, filtros e subtarefas.
-- Projetos e metas.
-- Hábitos e sequências.
-- Kanban com drag-and-drop.
-- Agenda mensal e semanal.
-- Reagendamento manual por arrastar.
-- Prioridade automática.
-- Notificações com Concluir e Adiar 10 min.
-- Widget da tela inicial.
-- Estatísticas semanais.
-- Tema claro/escuro e integração com barras do sistema.
+### Configurações e acessibilidade
+- Nome de exibição opcional.
+- Tema **Sistema / Claro / Escuro**.
+- Opção **Reduzir animações**.
+- Opção para desativar feedback tátil.
+- Replanejamento automático opcional de tarefas flexíveis atrasadas.
+- Ação para reagendar lembretes de tarefas e hábitos.
+
+### Fluidez e resiliência
+- Skeleton animado na inicialização em vez de spinner.
+- Transições curtas de fade/slide entre áreas.
+- Estados `pressed` com redução sutil de escala.
+- Conclusão de tarefas/hábitos com atualização visual imediata (optimistic UI), haptic e animação.
+- Tela de recuperação em caso de exceção crítica.
+- Backup do JSON bruto em caso de armazenamento local corrompido antes da recuperação.
+
+### Mantido da 2.2
+- Planejador inteligente de tarefas flexíveis.
+- Capacidade produtiva e janela de disponibilidade.
+- Preview e desfazer planejamento.
+- Agenda mensal/semanal.
+- Kanban drag-and-drop.
+- Projetos, metas, subtarefas, pesquisa e filtros.
+- Prioridade automática e notificações com ações rápidas.
+- Widget da tela inicial, agora com streak e foco.
 
 ## Versão Android
 
-- `versionCode 5`
-- `versionName 2.2.0`
+- `versionCode 6`
+- `versionName 2.3.0`
 - `minSdk 24`
 - `targetSdk 35`
 - Java 17
-- Schema local: v4
+- Schema local: v5
 
 ## Build na nuvem
 
-O workflow `.github/workflows/build-apk.yml` gera um APK release assinado sempre que houver `push` na `main` ou uma tag `v*`.
+O workflow `.github/workflows/build-apk.yml` gera um APK release assinado em `push` para `main/master`, execução manual ou tag `v*`.
 
-Artifact esperado:
-
-`Ritmo-v2.2.0-APK`
-
-Arquivo:
-
-`Ritmo-v2.2.0.apk`
+Artifact esperado: `Ritmo-v2.3.0-APK`  
+Arquivo esperado: `Ritmo-v2.3.0.apk`
 
 ## Estrutura principal
 
-- `MainActivity.java` — interface, navegação, formulários e ações.
-- `Store.java` — persistência, modelos e métricas.
-- `SmartPlanner.java` — algoritmo local de distribuição e rollback do planejamento.
-- `ReminderReceiver.java` — notificações e ações rápidas.
-- `ReminderScheduler.java` — agendamento de lembretes.
+- `MainActivity.java` — shell, navegação, dashboard, agenda, CRUD e configurações.
+- `FocusActivity.java` — modo foco/Pomodoro e persistência da sessão ativa.
+- `Store.java` — persistência, modelos, migração e métricas.
+- `SmartPlanner.java` — planejamento local de tarefas flexíveis.
+- `ReminderScheduler.java` / `RoutineReminderScheduler.java` — alarmes locais.
+- `ReminderReceiver.java` / `BootReceiver.java` — notificações, ações e restauração após boot.
+- `ProgressRingView.java` — anel de progresso nativo.
+- `MonthlyHeatmapView.java` — consistência de 30 dias.
+- `WeeklyBarChart.java` — gráficos semanais/foco.
 - `RitmoWidgetProvider.java` — widget da tela inicial.
-- `WeeklyBarChart.java` — gráfico semanal nativo.
 
 ## Privacidade
 
-O Planejador Inteligente roda totalmente no aparelho. Nenhuma tarefa, horário ou rotina é enviada para serviços externos.
+Tarefas, hábitos, sessões de foco, agenda e planejamento permanecem locais no aparelho. O app não depende de conta ou backend.
 
 ## Assinatura
 
-A pasta `signing/` contém a chave usada nas builds 2.x. Preserve essa chave para que o Android aceite versões futuras como atualização do mesmo app. Mantenha o repositório privado e não publique a chave.
+A pasta `signing/` contém a chave usada nas builds 2.x. Preserve essa chave para que o Android aceite futuras versões como atualização do mesmo aplicativo. Mantenha o repositório privado e não publique a chave ou suas credenciais.

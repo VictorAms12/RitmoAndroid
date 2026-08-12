@@ -6,9 +6,13 @@ import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
 import android.content.pm.PackageManager;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.content.ClipData;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
@@ -17,6 +21,8 @@ import android.text.InputType;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
+import android.view.MotionEvent;
 import android.view.DragEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -24,6 +30,7 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.GridLayout;
@@ -54,13 +61,15 @@ import java.util.Map;
 public class MainActivity extends Activity {
 
     private boolean darkMode;
-    private int BG, PANEL, PANEL2, TEXT, MUTED, LINE, BRAND, BRAND_DARK, ACCENT, GOOD, WARN, BAD, NAV;
+    private int BG, PANEL, PANEL2, TEXT, MUTED, LINE, BRAND, BRAND_DARK, BRAND_SOFT, ACCENT, MINT, GOOD, WARN, BAD, NAV;
+    private String themeMode = "system";
+    private boolean reduceMotion;
     private Store store;
     private FrameLayout content;
     private LinearLayout bottomNav;
     private String currentPage = "home";
     private String taskFilter = "all";
-    private String organizeTab = "kanban";
+    private String organizeTab = "stats";
     private String agendaMode = "month";
     private String selectedAgendaDate = Store.today();
     private Calendar visibleMonth = Calendar.getInstance();
@@ -73,24 +82,40 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         installCrashRecorder();
-        darkMode = getSharedPreferences("ritmo_ui", MODE_PRIVATE).getBoolean("dark", false);
+        SharedPreferences uiPrefs = getSharedPreferences("ritmo_ui", MODE_PRIVATE);
+        String savedThemeMode = uiPrefs.getString("theme_mode", null);
+        if (savedThemeMode == null) savedThemeMode = uiPrefs.contains("dark") ? (uiPrefs.getBoolean("dark", false) ? "dark" : "light") : "system";
+        themeMode = savedThemeMode;
+        darkMode = resolveDarkMode(themeMode);
+        reduceMotion = uiPrefs.getBoolean("reduce_motion", false);
         setTheme(darkMode ? com.ritmo.mobile.R.style.Theme_Ritmo_Dark : com.ritmo.mobile.R.style.Theme_Ritmo);
         super.onCreate(savedInstanceState);
         try {
             applyPalette();
             configureSystemBars();
-            store = new Store(this);
-            buildShell();
-            showPage("home");
+            showStartupSkeleton();
 
-            // Permissões e alarmes ficam para depois da primeira tela renderizar.
-            // Isso evita que integrações do sistema impeçam a abertura do app.
-            if (content != null) {
-                content.postDelayed(() -> {
-                    try { requestNotificationPermissionIfNeeded(); } catch (Throwable ignored) { }
-                    try { ReminderScheduler.rescheduleAll(this, store); } catch (Throwable ignored) { }
-                }, 700);
-            }
+            // Carrega o armazenamento no próximo frame: o skeleton aparece imediatamente
+            // sem introduzir spinner ou bloquear a percepção de resposta do app.
+            getWindow().getDecorView().post(() -> {
+                try {
+                    store = new Store(this);
+                    buildShell();
+                    showPage("home");
+
+                    // Permissões e alarmes ficam para depois da primeira tela útil renderizar.
+                    if (content != null) {
+                        content.postDelayed(() -> {
+                            try { requestNotificationPermissionIfNeeded(); } catch (Throwable ignored) { }
+                            try { ReminderScheduler.rescheduleAll(this, store); } catch (Throwable ignored) { }
+                            try { RoutineReminderScheduler.rescheduleAll(this, store); } catch (Throwable ignored) { }
+                        }, 700);
+                    }
+                } catch (Throwable e) {
+                    recordCrash(e);
+                    showRecoveryScreen(e);
+                }
+            });
         } catch (Throwable e) {
             recordCrash(e);
             showRecoveryScreen(e);
@@ -103,6 +128,14 @@ public class MainActivity extends Activity {
         try {
             if (store != null) {
                 store.normalizeRecurringTasks();
+                if (getSharedPreferences("ritmo_planner_settings", MODE_PRIVATE).getBoolean("autoReplanOverdue", false)) {
+                    int moved = store.replanOverdueFlexibleToToday();
+                    if (moved > 0) {
+                        SmartPlanner.Result result = SmartPlanner.plan(store, plannerSettings());
+                        SmartPlanner.apply(this, store, result);
+                        try { ReminderScheduler.rescheduleAll(this, store); } catch (Throwable ignored) { }
+                    }
+                }
                 if (content != null) showPage(currentPage);
             }
         } catch (Throwable e) {
@@ -175,35 +208,51 @@ public class MainActivity extends Activity {
         } catch (Throwable ignored) { }
     }
 
+    private boolean resolveDarkMode(String mode) {
+        if ("dark".equals(mode)) return true;
+        if ("light".equals(mode)) return false;
+        int night = getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        return night == Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    private String userName() {
+        String value = getSharedPreferences("ritmo_ui", MODE_PRIVATE).getString("user_name", "");
+        return value == null ? "" : value.trim();
+    }
+
     private void applyPalette() {
         if (darkMode) {
-            BG = Color.rgb(7, 22, 18);
-            PANEL = Color.rgb(13, 33, 27);
-            PANEL2 = Color.rgb(16, 43, 35);
-            TEXT = Color.rgb(239, 248, 244);
-            MUTED = Color.rgb(148, 170, 162);
-            LINE = Color.rgb(29, 58, 49);
-            BRAND = Color.rgb(87, 216, 170);
-            BRAND_DARK = Color.rgb(9, 47, 38);
-            ACCENT = Color.rgb(87, 216, 170);
-            GOOD = Color.rgb(74, 201, 156);
-            WARN = Color.rgb(230, 165, 73);
-            BAD = Color.rgb(230, 108, 108);
-            NAV = Color.rgb(6, 17, 14);
+            BG = Color.rgb(15, 23, 42);          // #0F172A
+            PANEL = Color.rgb(30, 41, 59);       // #1E293B
+            PANEL2 = Color.rgb(24, 33, 50);
+            TEXT = Color.rgb(248, 250, 252);
+            MUTED = Color.rgb(148, 163, 184);
+            LINE = Color.rgb(51, 65, 85);
+            BRAND = Color.rgb(129, 140, 248);    // Indigo 400
+            BRAND_DARK = Color.rgb(79, 70, 229);
+            BRAND_SOFT = Color.rgb(49, 46, 89);
+            ACCENT = Color.rgb(45, 212, 191);    // Mint
+            MINT = ACCENT;
+            GOOD = Color.rgb(52, 211, 153);
+            WARN = Color.rgb(251, 191, 36);
+            BAD = Color.rgb(251, 113, 133);
+            NAV = Color.rgb(17, 24, 39);
         } else {
-            BG = Color.rgb(244, 247, 245);
+            BG = Color.rgb(248, 249, 250);        // #F8F9FA
             PANEL = Color.WHITE;
-            PANEL2 = Color.rgb(237, 243, 240);
-            TEXT = Color.rgb(23, 35, 31);
-            MUTED = Color.rgb(107, 123, 117);
-            LINE = Color.rgb(220, 230, 225);
-            BRAND = Color.rgb(15, 95, 77);
-            BRAND_DARK = Color.rgb(11, 43, 36);
-            ACCENT = Color.rgb(87, 216, 170);
-            GOOD = Color.rgb(29, 138, 100);
-            WARN = Color.rgb(201, 130, 34);
-            BAD = Color.rgb(201, 79, 79);
-            NAV = Color.rgb(9, 28, 23);
+            PANEL2 = Color.rgb(241, 245, 249);
+            TEXT = Color.rgb(17, 24, 39);         // #111827
+            MUTED = Color.rgb(100, 116, 139);
+            LINE = Color.rgb(226, 232, 240);
+            BRAND = Color.rgb(99, 102, 241);      // Indigo 500
+            BRAND_DARK = Color.rgb(79, 70, 229);
+            BRAND_SOFT = Color.rgb(238, 242, 255);
+            ACCENT = Color.rgb(13, 148, 136);     // Teal 600
+            MINT = Color.rgb(16, 185, 129);
+            GOOD = Color.rgb(16, 185, 129);
+            WARN = Color.rgb(217, 119, 6);
+            BAD = Color.rgb(225, 29, 72);
+            NAV = Color.WHITE;
         }
     }
 
@@ -238,10 +287,45 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void showStartupSkeleton() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(16), dp(28), dp(16), dp(18));
+        root.setBackgroundColor(BG);
+
+        root.addView(skeletonBlock(), skeletonParams(148, 22, 18));
+        root.addView(skeletonBlock(), skeletonParams(-1, 164, 22));
+        root.addView(skeletonBlock(), skeletonParams(104, 14, 12));
+        root.addView(skeletonBlock(), skeletonParams(-1, 72, 10));
+        root.addView(skeletonBlock(), skeletonParams(-1, 72, 10));
+        root.addView(skeletonBlock(), skeletonParams(-1, 72, 10));
+
+        if (!reduceMotion) {
+            android.animation.ObjectAnimator pulse = android.animation.ObjectAnimator.ofFloat(root, View.ALPHA, 0.58f, 1f);
+            pulse.setDuration(720L);
+            pulse.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+            pulse.setRepeatMode(android.animation.ValueAnimator.REVERSE);
+            pulse.start();
+        }
+        setContentView(root);
+    }
+
+    private View skeletonBlock() {
+        View v = new View(this);
+        v.setBackground(rounded(PANEL2, 14, false));
+        return v;
+    }
+
+    private LinearLayout.LayoutParams skeletonParams(int widthDp, int heightDp, int bottomDp) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(widthDp < 0 ? ViewGroup.LayoutParams.MATCH_PARENT : dp(widthDp), dp(heightDp));
+        lp.setMargins(0, 0, 0, dp(bottomDp));
+        return lp;
+    }
+
     private void buildShell() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(NAV);
+        root.setBackgroundColor(BG);
 
         root.setOnApplyWindowInsetsListener((v, insets) -> {
             int top, bottom;
@@ -255,11 +339,12 @@ public class MainActivity extends Activity {
             return insets;
         });
 
-        root.addView(buildTopBar(), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(68)));
+        root.addView(buildTopBar(), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(72)));
         content = new FrameLayout(this);
+        content.setBackgroundColor(BG);
         root.addView(content, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         bottomNav = buildBottomNav();
-        root.addView(bottomNav, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(72)));
+        root.addView(bottomNav, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(78)));
         setContentView(root);
     }
 
@@ -267,32 +352,34 @@ public class MainActivity extends Activity {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setPadding(dp(16), dp(7), dp(12), dp(7));
+        bar.setPadding(dp(16), dp(8), dp(12), dp(8));
         bar.setBackgroundColor(BG);
 
         LinearLayout titleBox = new LinearLayout(this);
         titleBox.setOrientation(LinearLayout.VERTICAL);
-        topTitleView = text("Ritmo", 21, TEXT, true);
+        topTitleView = text("Ritmo", 20, TEXT, true);
         topSubtitleView = text(shortDate(Store.today()), 11, MUTED, false);
         titleBox.addView(topTitleView);
         titleBox.addView(topSubtitleView);
         bar.addView(titleBox, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        TextView version = text("v2.1", 10, BRAND, true);
+        TextView version = text("2.3", 10, BRAND, true);
         version.setPadding(dp(9), dp(5), dp(9), dp(5));
         version.setGravity(Gravity.CENTER);
-        version.setBackground(rounded(darkMode ? Color.rgb(18, 58, 46) : Color.rgb(223, 240, 234), 99, false));
+        version.setBackground(rounded(BRAND_SOFT, 99, false));
         LinearLayout.LayoutParams vp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        vp.setMargins(0, 0, dp(6), 0);
+        vp.setMargins(0, 0, dp(8), 0);
         bar.addView(version, vp);
 
-        ImageButton theme = iconButton(darkMode ? R.drawable.ic_sun : R.drawable.ic_moon, darkMode ? ACCENT : BRAND);
-        theme.setContentDescription("Alternar tema");
+        ImageButton theme = iconButton(darkMode ? R.drawable.ic_sun : R.drawable.ic_moon, BRAND);
+        theme.setContentDescription("Alternar modo claro e escuro");
+        makePressable(theme);
         theme.setOnClickListener(v -> {
-            getSharedPreferences("ritmo_ui", MODE_PRIVATE).edit().putBoolean("dark", !darkMode).apply();
+            String next = darkMode ? "light" : "dark";
+            getSharedPreferences("ritmo_ui", MODE_PRIVATE).edit().putString("theme_mode", next).putBoolean("dark", !darkMode).apply();
             recreate();
         });
-        bar.addView(theme, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        bar.addView(theme, new LinearLayout.LayoutParams(dp(44), dp(44)));
         return bar;
     }
 
@@ -300,17 +387,23 @@ public class MainActivity extends Activity {
         if (topTitleView == null || topSubtitleView == null) return;
         if ("tasks".equals(currentPage)) {
             topTitleView.setText("Tarefas");
-            topSubtitleView.setText("Capture, filtre e conclua");
+            topSubtitleView.setText("Capture, priorize e conclua");
         } else if ("agenda".equals(currentPage)) {
-            topTitleView.setText("Agenda");
+            topTitleView.setText("Calendário");
             topSubtitleView.setText(fullDate(selectedAgendaDate));
         } else if ("organize".equals(currentPage)) {
-            topTitleView.setText("Organizar");
-            String label = "kanban".equals(organizeTab) ? "Kanban" : "projects".equals(organizeTab) ? "Projetos" : "goals".equals(organizeTab) ? "Metas" : "habits".equals(organizeTab) ? "Hábitos" : "Estatísticas";
-            topSubtitleView.setText(label + " · visão geral");
+            topTitleView.setText("Progresso");
+            String label = "kanban".equals(organizeTab) ? "Kanban" : "planner".equals(organizeTab) ? "Planejador" : "projects".equals(organizeTab) ? "Projetos" : "goals".equals(organizeTab) ? "Metas" : "habits".equals(organizeTab) ? "Hábitos" : "Estatísticas";
+            topSubtitleView.setText(label + " · sua evolução");
+        } else if ("settings".equals(currentPage)) {
+            topTitleView.setText("Configurações");
+            topSubtitleView.setText("Aparência, acessibilidade e preferências");
         } else {
-            topTitleView.setText("Ritmo");
-            topSubtitleView.setText(shortDate(Store.today()));
+            int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+            String greeting = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
+            String name = userName();
+            topTitleView.setText(name.isEmpty() ? greeting : greeting + ", " + name);
+            topSubtitleView.setText(fullDate(Store.today()));
         }
     }
 
@@ -318,23 +411,28 @@ public class MainActivity extends Activity {
         LinearLayout nav = new LinearLayout(this);
         nav.setOrientation(LinearLayout.HORIZONTAL);
         nav.setGravity(Gravity.CENTER);
-        nav.setPadding(dp(8), dp(6), dp(8), dp(6));
+        nav.setPadding(dp(8), dp(7), dp(8), dp(7));
         nav.setBackgroundColor(NAV);
-        nav.addView(navButton(com.ritmo.mobile.R.drawable.ic_home, "Hoje", "home"), weighted());
-        nav.addView(navButton(com.ritmo.mobile.R.drawable.ic_tasks, "Tarefas", "tasks"), weighted());
+        nav.setElevation(dp(10));
+
+        nav.addView(navButton(R.drawable.ic_home, "Hoje", "home"), weighted());
+        nav.addView(navButton(R.drawable.ic_calendar, "Calendário", "agenda"), weighted());
 
         ImageButton plus = new ImageButton(this);
-        plus.setImageResource(com.ritmo.mobile.R.drawable.ic_add);
+        plus.setImageResource(R.drawable.ic_add);
+        plus.setColorFilter(Color.WHITE);
         plus.setScaleType(ImageView.ScaleType.CENTER);
-        plus.setBackground(rounded(ACCENT, 18, false));
-        plus.setContentDescription("Adicionar");
-        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(dp(58), dp(54));
-        pp.setMargins(dp(4), 0, dp(4), 0);
+        plus.setBackground(rounded(BRAND, 18, false));
+        plus.setElevation(dp(7));
+        plus.setContentDescription("Adicionar nova tarefa, hábito ou compromisso");
+        makePressable(plus);
+        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(dp(58), dp(56));
+        pp.setMargins(dp(6), 0, dp(6), 0);
         nav.addView(plus, pp);
         plus.setOnClickListener(v -> showAddMenu());
 
-        nav.addView(navButton(com.ritmo.mobile.R.drawable.ic_calendar, "Agenda", "agenda"), weighted());
-        nav.addView(navButton(com.ritmo.mobile.R.drawable.ic_grid, "Organizar", "organize"), weighted());
+        nav.addView(navButton(R.drawable.ic_stats, "Progresso", "organize"), weighted());
+        nav.addView(navButton(R.drawable.ic_settings, "Ajustes", "settings"), weighted());
         return nav;
     }
 
@@ -342,31 +440,39 @@ public class MainActivity extends Activity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setGravity(Gravity.CENTER);
-        box.setPadding(dp(3), dp(4), dp(3), dp(4));
+        box.setPadding(dp(3), dp(5), dp(3), dp(4));
         box.setTag(page);
+        box.setContentDescription(label);
+        box.setMinimumHeight(dp(56));
 
         ImageView icon = new ImageView(this);
         icon.setImageResource(iconRes);
-        icon.setColorFilter(Color.rgb(154, 177, 168));
+        icon.setColorFilter(MUTED);
         box.addView(icon, new LinearLayout.LayoutParams(dp(22), dp(22)));
-        TextView txt = text(label, 10, Color.rgb(154, 177, 168), true);
+        TextView txt = text(label, 9, MUTED, true);
         txt.setGravity(Gravity.CENTER);
+        txt.setPadding(0, dp(2), 0, 0);
         box.addView(txt);
-        box.setOnClickListener(v -> showPage(page));
+        makePressable(box);
+        box.setOnClickListener(v -> {
+            if ("organize".equals(page) && !"organize".equals(currentPage)) organizeTab = "stats";
+            showPage(page);
+        });
         return box;
     }
 
     private void highlightNav() {
+        if (bottomNav == null) return;
         for (int i = 0; i < bottomNav.getChildCount(); i++) {
             View child = bottomNav.getChildAt(i);
             if (!(child instanceof LinearLayout)) continue;
-            boolean active = currentPage.equals(String.valueOf(child.getTag()));
-            child.setBackground(active ? rounded(Color.argb(30, 255, 255, 255), 14, false) : null);
+            boolean active = currentPage.equals(String.valueOf(child.getTag())) || ("tasks".equals(currentPage) && "home".equals(String.valueOf(child.getTag())));
+            child.setBackground(active ? rounded(BRAND_SOFT, 14, false) : null);
             LinearLayout box = (LinearLayout) child;
             for (int j = 0; j < box.getChildCount(); j++) {
                 View inner = box.getChildAt(j);
-                if (inner instanceof TextView) ((TextView) inner).setTextColor(active ? Color.WHITE : Color.rgb(154, 177, 168));
-                if (inner instanceof ImageView) ((ImageView) inner).setColorFilter(active ? Color.WHITE : Color.rgb(154, 177, 168));
+                if (inner instanceof TextView) ((TextView) inner).setTextColor(active ? BRAND : MUTED);
+                if (inner instanceof ImageView) ((ImageView) inner).setColorFilter(active ? BRAND : MUTED);
             }
         }
     }
@@ -375,11 +481,20 @@ public class MainActivity extends Activity {
         try {
             currentPage = page;
             if (content == null) return;
+            View next;
+            if ("tasks".equals(page)) next = buildTasksPage();
+            else if ("agenda".equals(page)) next = buildAgendaPage();
+            else if ("organize".equals(page)) next = buildOrganizePage();
+            else if ("settings".equals(page)) next = buildSettingsPage();
+            else next = buildHomePage();
+
             content.removeAllViews();
-            if ("tasks".equals(page)) content.addView(buildTasksPage());
-            else if ("agenda".equals(page)) content.addView(buildAgendaPage());
-            else if ("organize".equals(page)) content.addView(buildOrganizePage());
-            else content.addView(buildHomePage());
+            content.addView(next, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            if (!reduceMotion) {
+                next.setAlpha(0f);
+                next.setTranslationX(dp(10));
+                next.animate().alpha(1f).translationX(0f).setDuration(180L).start();
+            }
             highlightNav();
             updateTopBar();
         } catch (Throwable e) {
@@ -392,30 +507,29 @@ public class MainActivity extends Activity {
         LinearLayout body = body();
         body.addView(buildHero());
 
-        body.addView(sectionHeader("Prioridades de hoje", "Ver todas", v -> showPage("tasks")));
-        List<Store.Task> today = tasksForDate(Store.today());
-        Collections.sort(today, (a, b) -> Integer.compare(priorityValue(b.effectivePriority()), priorityValue(a.effectivePriority())));
-        int shown = 0;
-        for (Store.Task t : today) {
-            if (shown++ >= 4) break;
-            body.addView(taskCard(t));
+        int overdueFlexible = 0;
+        for (Store.Task t : store.tasks) {
+            if (!"done".equals(t.status) && t.flexible && "none".equals(t.recurrence) && t.date.compareTo(Store.today()) < 0) overdueFlexible++;
         }
-        if (today.isEmpty()) body.addView(emptyCard("Nenhuma tarefa para hoje."));
+        if (overdueFlexible > 0) {
+            body.addView(sectionHeader("Pendências", null, null));
+            body.addView(replanCard(overdueFlexible));
+        }
 
-        body.addView(sectionHeader("Rotina de hoje", "Ver hábitos", v -> {
+        body.addView(sectionHeader("Seu dia", "Todas as tarefas", v -> showPage("tasks")));
+        body.addView(dayTimeline());
+
+        body.addView(sectionHeader("Foco", "Ver progresso", v -> {
+            organizeTab = "stats";
+            showPage("organize");
+        }));
+        body.addView(focusQuickCard());
+
+        body.addView(sectionHeader("Hábitos de hoje", "Gerenciar", v -> {
             organizeTab = "habits";
             showPage("organize");
         }));
         body.addView(homeRoutineCard());
-
-        body.addView(sectionHeader("Resumo", null, null));
-        body.addView(metricsRow(today));
-
-        body.addView(sectionHeader("Planejamento inteligente", "Abrir planejador", v -> {
-            organizeTab = "planner";
-            showPage("organize");
-        }));
-        body.addView(smartPlanningHomeCard());
 
         body.addView(sectionHeader("Metas em andamento", "Abrir metas", v -> {
             organizeTab = "goals";
@@ -423,7 +537,7 @@ public class MainActivity extends Activity {
         }));
         body.addView(goalsCard(Math.min(3, store.goals.size())));
 
-        body.addView(sectionHeader("Últimos 7 dias", "Estatísticas", v -> {
+        body.addView(sectionHeader("Visão da semana", "Estatísticas", v -> {
             organizeTab = "stats";
             showPage("organize");
         }));
@@ -434,68 +548,257 @@ public class MainActivity extends Activity {
     private View buildHero() {
         LinearLayout hero = new LinearLayout(this);
         hero.setOrientation(LinearLayout.VERTICAL);
-        hero.setPadding(dp(20), dp(20), dp(20), dp(20));
+        hero.setPadding(dp(18), dp(18), dp(18), dp(18));
         GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[]{darkMode ? Color.rgb(8, 42, 34) : BRAND_DARK, darkMode ? Color.rgb(14, 89, 69) : Color.rgb(14, 107, 85)});
-        bg.setCornerRadius(dp(28));
+                new int[]{darkMode ? Color.rgb(49, 46, 129) : Color.rgb(79, 70, 229),
+                        darkMode ? Color.rgb(30, 41, 90) : Color.rgb(99, 102, 241)});
+        bg.setCornerRadius(dp(22));
         hero.setBackground(bg);
+        hero.setElevation(darkMode ? dp(1) : dp(5));
 
-        hero.addView(text("SEU DIA EM MOVIMENTO", 11, Color.rgb(168, 214, 196), true));
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout intro = new LinearLayout(this);
+        intro.setOrientation(LinearLayout.VERTICAL);
+        intro.addView(text("HOJE · " + weekdayShort(Store.today()), 10, Color.rgb(199, 210, 254), true));
+        String name = userName();
         int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
-        String greeting = h < 12 ? "Bom dia. Escolha o que realmente precisa avançar."
-                : h < 18 ? "Boa tarde. Proteja o foco e mantenha o ritmo."
-                : "Boa noite. Feche o dia com clareza, sem carregar tudo para amanhã.";
-        TextView title = text(greeting, isTablet() ? 30 : 26, Color.WHITE, true);
-        title.setPadding(0, dp(7), 0, dp(16));
-        hero.addView(title);
+        String greeting = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
+        TextView title = text(name.isEmpty() ? greeting + ". Qual é o seu ritmo?" : greeting + ", " + name + ".", isTablet() ? 28 : 24, Color.WHITE, true);
+        title.setPadding(0, dp(4), 0, dp(3));
+        intro.addView(title);
+        intro.addView(text("Progresso é consistência, não perfeição.", 11, Color.rgb(224, 231, 255), false));
+        top.addView(intro, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        int score = store.combinedDayScore(Store.today());
+        ProgressRingView ring = new ProgressRingView(this);
+        ring.setValue(score);
+        ring.setContentDescription("Progresso de hoje: " + score + "%");
+        ring.setStrokeDp(6f);
+        ring.setColors(Color.rgb(45, 212, 191), Color.argb(55,255,255,255), Color.WHITE);
+        top.addView(ring, new LinearLayout.LayoutParams(dp(88), dp(88)));
+        hero.addView(top);
 
         List<Store.Task> today = tasksForDate(Store.today());
-        int done = 0, planned = 0;
-        for (Store.Task t : today) { if ("done".equals(t.status)) done++; planned += t.minutes; }
-        int pct = today.isEmpty() ? 0 : Math.round(done * 100f / today.size());
+        int done = 0;
+        for (Store.Task t : today) if ("done".equals(t.status)) done++;
+        Store.Routine best = store.bestRoutineByStreak();
+        int streak = best == null ? 0 : best.streak(Store.today());
 
-        LinearLayout score = new LinearLayout(this);
-        score.setOrientation(LinearLayout.HORIZONTAL);
-        score.setGravity(Gravity.CENTER_VERTICAL);
-        score.setPadding(dp(14), dp(13), dp(14), dp(13));
-        score.setBackground(rounded(Color.argb(35, 255, 255, 255), 18, false));
-        LinearLayout left = new LinearLayout(this); left.setOrientation(LinearLayout.VERTICAL);
-        left.addView(text("Eficiência de hoje", 11, Color.rgb(185, 224, 210), false));
-        left.addView(text(pct + "%", 30, Color.WHITE, true));
-        left.addView(text(done + " de " + today.size() + " tarefas · " + humanMinutes(planned), 11, Color.rgb(185, 224, 210), false));
-        score.addView(left, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        ProgressBar pb = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-        pb.setMax(100); pb.setProgress(pct);
-        pb.setProgressTintList(ColorStateList.valueOf(ACCENT));
-        pb.setProgressBackgroundTintList(ColorStateList.valueOf(Color.argb(45,255,255,255)));
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(86), dp(9));
-        score.addView(pb, p);
-        hero.addView(score);
+        LinearLayout stats = new LinearLayout(this);
+        stats.setOrientation(LinearLayout.HORIZONTAL);
+        stats.setPadding(0, dp(15), 0, 0);
+        stats.addView(heroMetric(done + "/" + today.size(), "tarefas"), new LinearLayout.LayoutParams(0, dp(58), 1f));
+        stats.addView(heroMetric("🔥 " + streak, "sequência"), new LinearLayout.LayoutParams(0, dp(58), 1f));
+        stats.addView(heroMetric(humanMinutes(store.focusMinutesOn(Store.today())), "foco"), new LinearLayout.LayoutParams(0, dp(58), 1f));
+        hero.addView(stats);
+
         return hero;
+    }
+
+    private View heroMetric(String value, String label) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setGravity(Gravity.CENTER);
+        box.setPadding(dp(6), dp(5), dp(6), dp(5));
+        box.setBackground(rounded(Color.argb(28,255,255,255), 12, false));
+        TextView v = text(value, 14, Color.WHITE, true); v.setGravity(Gravity.CENTER);
+        TextView l = text(label, 9, Color.rgb(224,231,255), false); l.setGravity(Gravity.CENTER);
+        box.addView(v); box.addView(l);
+        return box;
+    }
+
+    private View replanCard(int count) {
+        LinearLayout card = cardBox();
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(15), dp(13), dp(12), dp(13));
+        View accent = new View(this);
+        accent.setBackground(rounded(WARN, 99, false));
+        card.addView(accent, new LinearLayout.LayoutParams(dp(4), dp(42)));
+        LinearLayout info = new LinearLayout(this);
+        info.setOrientation(LinearLayout.VERTICAL);
+        info.setPadding(dp(12), 0, dp(8), 0);
+        info.addView(text(count + " pendência" + (count == 1 ? "" : "s") + " flexível" + (count == 1 ? "" : "is"), 13, TEXT, true));
+        info.addView(text("Replaneje sem perder os prazos definidos.", 10, MUTED, false));
+        card.addView(info, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Button action = secondaryButton("Replanejar");
+        action.setOnClickListener(v -> {
+            int moved = store.replanOverdueFlexibleToToday();
+            if (moved > 0) {
+                SmartPlanner.Result result = SmartPlanner.plan(store, plannerSettings());
+                SmartPlanner.apply(this, store, result);
+                try { ReminderScheduler.rescheduleAll(this, store); } catch (Throwable ignored) { }
+                Toast.makeText(this, moved + " pendência(s) redistribuída(s).", Toast.LENGTH_SHORT).show();
+            }
+            showPage("home");
+        });
+        card.addView(action, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44)));
+        return card;
+    }
+
+    private View dayTimeline() {
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        List<Store.Task> today = tasksForDate(Store.today());
+        Collections.sort(today, Comparator.comparing((Store.Task t) -> safe(t.time, "99:99")));
+        if (today.isEmpty()) {
+            return emptyState(R.drawable.ic_calendar, "Nenhuma rotina para hoje", "Que tal descansar ou criar algo pequeno para manter o ritmo?", "Criar tarefa", v -> showTaskDialog(null, false, Store.today()));
+        }
+
+        String[] names = {"Manhã", "Tarde", "Noite"};
+        int[] icons = {R.drawable.ic_sun, R.drawable.ic_focus, R.drawable.ic_moon};
+        for (int period = 0; period < 3; period++) {
+            LinearLayout group = new LinearLayout(this);
+            group.setOrientation(LinearLayout.VERTICAL);
+            int count = 0;
+            for (Store.Task t : today) if (taskPeriod(t) == period) count++;
+            if (count == 0) continue;
+
+            LinearLayout label = new LinearLayout(this);
+            label.setGravity(Gravity.CENTER_VERTICAL);
+            ImageView icon = new ImageView(this);
+            icon.setImageResource(icons[period]); icon.setColorFilter(period == 1 ? WARN : BRAND);
+            label.addView(icon, new LinearLayout.LayoutParams(dp(17), dp(17)));
+            TextView name = text(names[period] + " · " + count, 11, MUTED, true);
+            name.setPadding(dp(7), dp(5), 0, dp(5));
+            label.addView(name);
+            group.addView(label);
+            for (Store.Task t : today) if (taskPeriod(t) == period) group.addView(taskCard(t));
+            wrap.addView(group);
+        }
+        return wrap;
+    }
+
+    private int taskPeriod(Store.Task t) {
+        int hour = 12;
+        try {
+            if (t.time != null && t.time.contains(":")) hour = Integer.parseInt(t.time.substring(0, 2));
+        } catch (Exception ignored) { }
+        if (hour < 12) return 0;
+        if (hour < 18) return 1;
+        return 2;
+    }
+
+    private View focusQuickCard() {
+        LinearLayout card = cardBox();
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(15), dp(14), dp(12), dp(14));
+
+        SharedPreferences focusPrefs = getSharedPreferences("ritmo_focus", MODE_PRIVATE);
+        boolean activeSession = focusPrefs.getBoolean("active", false);
+        long activeTaskId = focusPrefs.getLong("taskId", 0L);
+
+        Store.Task next = activeSession ? store.findTask(activeTaskId) : null;
+        if (!activeSession) {
+            for (Store.Task t : tasksForDate(Store.today())) {
+                if ("done".equals(t.status)) continue;
+                if (next == null || safe(t.time, "99:99").compareTo(safe(next.time, "99:99")) < 0) next = t;
+            }
+        }
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(R.drawable.ic_focus);
+        icon.setColorFilter(WARN);
+        icon.setPadding(dp(10),dp(10),dp(10),dp(10));
+        icon.setBackground(rounded(darkMode ? Color.rgb(67, 53, 30) : Color.rgb(255, 247, 237), 14, false));
+        card.addView(icon, new LinearLayout.LayoutParams(dp(46), dp(46)));
+
+        LinearLayout info = new LinearLayout(this);
+        info.setOrientation(LinearLayout.VERTICAL);
+        info.setPadding(dp(12), 0, dp(8), 0);
+        String title = activeSession ? (next == null ? "Sessão de foco em andamento" : next.title)
+                : (next == null ? "Sessão livre" : next.title);
+        info.addView(text(title, 13, TEXT, true));
+        String subtitle;
+        if (activeSession) {
+            subtitle = "Retome seu timer de onde parou";
+        } else if (store.focusMinutesOn(Store.today()) > 0) {
+            subtitle = humanMinutes(store.focusMinutesOn(Store.today())) + " focados hoje";
+        } else {
+            subtitle = "Pomodoro, foco longo ou duração da tarefa";
+        }
+        info.addView(text(subtitle, 10, MUTED, false));
+        card.addView(info, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        Button start = primaryButton(activeSession ? "Retomar" : "Focar");
+        Store.Task target = next;
+        start.setOnClickListener(v -> startFocus(target));
+        card.addView(start, new LinearLayout.LayoutParams(dp(88), dp(44)));
+        return card;
+    }
+
+    private void startFocus(Store.Task task) {
+        Intent i = new Intent(this, FocusActivity.class);
+        if (task != null) i.putExtra("taskId", task.id);
+        startActivity(i);
     }
 
     private View homeRoutineCard() {
         LinearLayout card = cardBox();
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(15), dp(8), dp(15), dp(8));
+        card.setPadding(dp(14), dp(7), dp(14), dp(7));
         int due = 0;
         for (Store.Routine r : store.routines) {
             if (!r.dueOn(Store.today())) continue;
+            if (due > 0) card.addView(divider());
             due++;
-            LinearLayout row = new LinearLayout(this);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(0, dp(8), 0, dp(8));
-            Button check = smallCheck(r.doneOn(Store.today()));
-            check.setOnClickListener(v -> { r.toggle(Store.today()); store.save(); showPage("home"); });
-            row.addView(check, new LinearLayout.LayoutParams(dp(34), dp(34)));
-            LinearLayout txt = new LinearLayout(this); txt.setOrientation(LinearLayout.VERTICAL); txt.setPadding(dp(10),0,0,0);
-            txt.addView(text(r.title, 13, TEXT, true));
-            txt.addView(text(r.minutes + " min · sequência " + r.streak(Store.today()) + " dia(s)", 11, MUTED, false));
-            row.addView(txt, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            card.addView(row);
+            card.addView(routineRow(r, true));
         }
-        if (due == 0) card.addView(text("Nenhuma rotina prevista para hoje.", 13, MUTED, false));
+        if (due == 0) {
+            card.addView(emptyInline("Sem hábitos previstos para hoje. Aproveite o espaço ou crie uma rotina leve."));
+        }
         return card;
+    }
+
+    private View routineRow(Store.Routine r, boolean homeMode) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(10), 0, dp(10));
+
+        View accent = new View(this);
+        accent.setBackground(rounded(routineAccentColor(r.accent), 99, false));
+        row.addView(accent, new LinearLayout.LayoutParams(dp(4), dp(42)));
+
+        Button check = smallCheck(r.doneOn(Store.today()));
+        check.setEnabled(r.dueOn(Store.today()));
+        check.setAlpha(r.dueOn(Store.today()) ? 1f : .35f);
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(38), dp(38));
+        cp.setMargins(dp(10), 0, 0, 0);
+        row.addView(check, cp);
+
+        LinearLayout txt = new LinearLayout(this);
+        txt.setOrientation(LinearLayout.VERTICAL);
+        txt.setPadding(dp(10), 0, dp(8), 0);
+        TextView title = text(r.title, 13, TEXT, true);
+        if (r.doneOn(Store.today())) {
+            title.setAlpha(.55f);
+            title.setPaintFlags(title.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+        }
+        txt.addView(title);
+        String time = r.time == null || r.time.isEmpty() ? "Sem horário" : r.time;
+        txt.addView(text(time + " · " + r.category + " · " + humanMinutes(r.minutes), 10, MUTED, false));
+        if (!homeMode) {
+            String freq = frequencyLabel(r.frequency);
+            if ("custom".equals(r.frequency)) freq += " · " + daysMaskLabel(r.daysMask);
+            txt.addView(text(freq + (r.reminderMinutes >= 0 ? " · " + reminderLabel(r.reminderMinutes) : ""), 9, BRAND, false));
+            if (r.detail != null && !r.detail.isEmpty()) txt.addView(text(r.detail, 10, MUTED, false));
+        }
+        row.addView(txt, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        LinearLayout streak = new LinearLayout(this);
+        streak.setOrientation(LinearLayout.VERTICAL);
+        streak.setGravity(Gravity.CENTER);
+        streak.addView(text("🔥 " + r.streak(Store.today()), 13, WARN, true));
+        streak.addView(text("dias", 9, MUTED, false));
+        row.addView(streak);
+
+        check.setOnClickListener(v -> animateRoutineToggle(row, check, title, r));
+        txt.setOnClickListener(v -> showRoutineDialog(r));
+        makePressable(row);
+        row.setOnLongClickListener(v -> { confirmDeleteRoutine(r); return true; });
+        return row;
     }
 
     private View metricsRow(List<Store.Task> today) {
@@ -597,7 +900,7 @@ public class MainActivity extends Activity {
             taskListContainer.addView(card);
         }
         body.addView(taskListContainer);
-        taskEmptyState = emptyCard("Nenhuma tarefa corresponde aos filtros.");
+        taskEmptyState = emptyState(R.drawable.ic_tasks, "Nada por aqui", "Nenhuma tarefa corresponde aos filtros atuais.", "Limpar filtros", v -> { taskFilter="all"; taskCategoryFilter="Todas"; taskQuery=""; showPage("tasks"); });
         body.addView(taskEmptyState);
         applyTaskVisibility();
         return wrapScroll(body);
@@ -686,45 +989,62 @@ public class MainActivity extends Activity {
 
     private View taskCard(Store.Task t) {
         LinearLayout card = cardBox();
-        card.setOrientation(LinearLayout.HORIZONTAL); card.setGravity(Gravity.CENTER_VERTICAL);
-        card.setPadding(dp(11), dp(10), dp(8), dp(10));
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(12), dp(11), dp(8), dp(11));
         card.setLayoutParams(marginBottom(dp(8)));
+        makePressable(card);
 
         Button check = smallCheck("done".equals(t.status));
-        check.setOnClickListener(v -> {
-            store.toggleTask(t);
-            if ("done".equals(t.status)) ReminderScheduler.cancel(this, t.id); else ReminderScheduler.schedule(this, t);
-            showPage(currentPage);
-        });
-        card.addView(check, new LinearLayout.LayoutParams(dp(35), dp(35)));
+        card.addView(check, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
-        LinearLayout center = new LinearLayout(this); center.setOrientation(LinearLayout.VERTICAL); center.setPadding(dp(10),0,dp(5),0);
-        TextView title = text(t.title, 14, TEXT, true); if ("done".equals(t.status)) title.setAlpha(.5f);
+        LinearLayout center = new LinearLayout(this);
+        center.setOrientation(LinearLayout.VERTICAL);
+        center.setPadding(dp(11), 0, dp(5), 0);
+
+        TextView title = text(t.title, 14, TEXT, true);
+        if ("done".equals(t.status)) {
+            title.setAlpha(.5f);
+            title.setPaintFlags(title.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+        }
         center.addView(title);
-        String meta = (t.time == null || t.time.isEmpty() ? "Sem horário" : t.time) + " · " + t.category + " · " + humanMinutes(t.minutes);
+
+        String time = t.time == null || t.time.isEmpty() ? "Sem horário" : t.time;
+        String meta = time + " · " + t.category + " · " + humanMinutes(t.minutes);
         center.addView(text(meta, 10, MUTED, false));
+
         String project = t.projectId == 0 ? "" : store.projectTitle(t.projectId);
         if (!project.isEmpty()) center.addView(text("▣ " + project, 10, BRAND, true));
+
         if (t.subtasks != null && !t.subtasks.isEmpty()) {
             center.addView(text("☑ " + t.completedSubtasks() + "/" + t.subtasks.size() + " subtarefas", 10, MUTED, false));
         }
-        String extra = ("auto".equals(t.priority) ? "Prioridade automática · " : "") + recurrenceLabel(t.recurrence) + (t.reminderMinutes >= 0 ? " · " + reminderLabel(t.reminderMinutes) : "");
-        if ("auto".equals(t.priority) || !"Sem repetição".equals(recurrenceLabel(t.recurrence)) || t.reminderMinutes >= 0) center.addView(text(extra, 9, BRAND, false));
-        if (t.flexible && "none".equals(t.recurrence)) {
-            String due = t.deadline == null || t.deadline.length() != 10 ? t.date : t.deadline;
-            center.addView(text("✦ Flexível · prazo " + compactDate(due), 9, GOOD, true));
-        }
+
+        LinearLayout badges = new LinearLayout(this);
+        badges.setOrientation(LinearLayout.HORIZONTAL);
+        badges.setPadding(0, dp(4), 0, 0);
+        if ("doing".equals(t.status)) badges.addView(miniBadge("Em andamento", WARN));
+        if (t.flexible && "none".equals(t.recurrence)) badges.addView(miniBadge("✦ Flexível", GOOD));
+        if ("auto".equals(t.priority)) badges.addView(miniBadge("Prioridade auto", BRAND));
+        if (badges.getChildCount() > 0) center.addView(badges);
+
         center.setOnClickListener(v -> showTaskDialog(t, false, null));
         card.addView(center, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        View dot = new View(this); dot.setBackground(rounded(priorityColor(t.effectivePriority()), 99, false));
-        LinearLayout.LayoutParams dpv = new LinearLayout.LayoutParams(dp(8), dp(8)); dpv.setMargins(dp(3),0,dp(3),0); card.addView(dot, dpv);
+        View dot = new View(this);
+        dot.setBackground(rounded(priorityColor(t.effectivePriority()), 99, false));
+        LinearLayout.LayoutParams dpv = new LinearLayout.LayoutParams(dp(8), dp(8));
+        dpv.setMargins(dp(3),0,dp(3),0);
+        card.addView(dot, dpv);
+
         ImageButton more = iconButton(R.drawable.ic_more, MUTED);
         more.setContentDescription("Opções da tarefa");
         more.setBackgroundColor(Color.TRANSPARENT);
         more.setPadding(dp(9),dp(9),dp(9),dp(9));
         more.setOnClickListener(v -> showTaskActions(t));
-        card.addView(more, new LinearLayout.LayoutParams(dp(38), dp(38)));
+        card.addView(more, new LinearLayout.LayoutParams(dp(42), dp(42)));
+
+        check.setOnClickListener(v -> animateTaskToggle(card, check, title, t));
         card.setOnLongClickListener(v -> { showTaskActions(t); return true; });
         return card;
     }
@@ -888,9 +1208,135 @@ public class MainActivity extends Activity {
         row.addView(event,new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f)); return row;
     }
 
+    private View buildSettingsPage() {
+        LinearLayout body = body();
+
+        body.addView(sectionHeader("Perfil", null, null));
+        LinearLayout profile = cardBox();
+        profile.setOrientation(LinearLayout.VERTICAL);
+        profile.setPadding(dp(15), dp(14), dp(15), dp(14));
+        EditText name = input("Como você quer ser chamado?");
+        name.setText(userName());
+        profile.addView(text("Nome de exibição", 12, TEXT, true));
+        TextView help = text("Usado apenas nos cumprimentos do app e salvo localmente.", 10, MUTED, false);
+        help.setPadding(0, dp(2), 0, dp(8));
+        profile.addView(help);
+        profile.addView(name);
+        Button saveName = primaryButton("Salvar nome");
+        saveName.setOnClickListener(v -> {
+            getSharedPreferences("ritmo_ui", MODE_PRIVATE).edit().putString("user_name", name.getText().toString().trim()).apply();
+            Toast.makeText(this, "Perfil atualizado.", Toast.LENGTH_SHORT).show();
+            updateTopBar();
+        });
+        profile.addView(saveName);
+        body.addView(profile);
+
+        body.addView(sectionHeader("Aparência", null, null));
+        LinearLayout appearance = cardBox();
+        appearance.setOrientation(LinearLayout.VERTICAL);
+        appearance.setPadding(dp(15), dp(14), dp(15), dp(14));
+        appearance.addView(text("Tema do aplicativo", 12, TEXT, true));
+        TextView themeHelp = text("O modo Sistema acompanha automaticamente o tema do Android.", 10, MUTED, false);
+        themeHelp.setPadding(0, dp(2), 0, dp(10));
+        appearance.addView(themeHelp);
+        LinearLayout themeRow = new LinearLayout(this);
+        themeRow.setOrientation(LinearLayout.HORIZONTAL);
+        String[] values = {"system","light","dark"};
+        String[] labels = {"Sistema","Claro","Escuro"};
+        for (int i = 0; i < values.length; i++) {
+            final String value = values[i];
+            Button b = chip(labels[i], value.equals(themeMode));
+            b.setOnClickListener(v -> {
+                getSharedPreferences("ritmo_ui", MODE_PRIVATE).edit().putString("theme_mode", value).apply();
+                recreate();
+            });
+            themeRow.addView(b);
+        }
+        appearance.addView(themeRow);
+        body.addView(appearance);
+
+        body.addView(sectionHeader("Acessibilidade", null, null));
+        LinearLayout accessibility = cardBox();
+        accessibility.setOrientation(LinearLayout.VERTICAL);
+        accessibility.setPadding(dp(15), dp(12), dp(15), dp(12));
+
+        CheckBox reduced = new CheckBox(this);
+        reduced.setText("Reduzir animações");
+        reduced.setTextColor(TEXT);
+        reduced.setTextSize(13);
+        reduced.setChecked(reduceMotion);
+        reduced.setButtonTintList(ColorStateList.valueOf(BRAND));
+        reduced.setPadding(0, dp(4), 0, dp(4));
+        reduced.setOnCheckedChangeListener((button, checked) -> {
+            reduceMotion = checked;
+            getSharedPreferences("ritmo_ui", MODE_PRIVATE).edit().putBoolean("reduce_motion", checked).apply();
+        });
+        accessibility.addView(reduced);
+
+        CheckBox haptics = new CheckBox(this);
+        haptics.setText("Feedback tátil");
+        haptics.setTextColor(TEXT);
+        haptics.setTextSize(13);
+        haptics.setChecked(getSharedPreferences("ritmo_ui", MODE_PRIVATE).getBoolean("haptics", true));
+        haptics.setButtonTintList(ColorStateList.valueOf(BRAND));
+        haptics.setPadding(0, dp(4), 0, dp(4));
+        haptics.setOnCheckedChangeListener((button, checked) ->
+                getSharedPreferences("ritmo_ui", MODE_PRIVATE).edit().putBoolean("haptics", checked).apply());
+        accessibility.addView(haptics);
+        body.addView(accessibility);
+
+        body.addView(sectionHeader("Planejamento", null, null));
+        LinearLayout planningPrefs = cardBox();
+        planningPrefs.setOrientation(LinearLayout.VERTICAL);
+        planningPrefs.setPadding(dp(15), dp(12), dp(15), dp(12));
+        CheckBox autoReplan = new CheckBox(this);
+        autoReplan.setText("Replanejar pendências flexíveis automaticamente");
+        autoReplan.setTextColor(TEXT);
+        autoReplan.setTextSize(13);
+        autoReplan.setButtonTintList(ColorStateList.valueOf(BRAND));
+        autoReplan.setChecked(getSharedPreferences("ritmo_planner_settings", MODE_PRIVATE).getBoolean("autoReplanOverdue", false));
+        autoReplan.setOnCheckedChangeListener((button, checked) ->
+                getSharedPreferences("ritmo_planner_settings", MODE_PRIVATE).edit().putBoolean("autoReplanOverdue", checked).apply());
+        planningPrefs.addView(autoReplan);
+        TextView autoHelp = text("Quando ativado, tarefas flexíveis vencidas voltam para a semana atual e passam novamente pelo Planejador.", 10, MUTED, false);
+        autoHelp.setPadding(dp(4), 0, dp(4), dp(4));
+        planningPrefs.addView(autoHelp);
+        body.addView(planningPrefs);
+
+        body.addView(sectionHeader("Lembretes", null, null));
+        LinearLayout reminders = cardBox();
+        reminders.setOrientation(LinearLayout.VERTICAL);
+        reminders.setPadding(dp(15), dp(14), dp(15), dp(14));
+        reminders.addView(text("Tarefas e hábitos", 12, TEXT, true));
+        reminders.addView(text("Restaure os alarmes locais caso o Android tenha restringido notificações ou após alterações importantes.", 10, MUTED, false));
+        Button reschedule = secondaryButton("Reagendar todos os lembretes");
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        rp.setMargins(0, dp(10), 0, 0);
+        reminders.addView(reschedule, rp);
+        reschedule.setOnClickListener(v -> {
+            try { ReminderScheduler.rescheduleAll(this, store); } catch (Throwable ignored) { }
+            try { RoutineReminderScheduler.rescheduleAll(this, store); } catch (Throwable ignored) { }
+            Toast.makeText(this, "Lembretes reagendados.", Toast.LENGTH_SHORT).show();
+        });
+        body.addView(reminders);
+
+        body.addView(sectionHeader("Sobre", null, null));
+        LinearLayout about = cardBox();
+        about.setOrientation(LinearLayout.VERTICAL);
+        about.setPadding(dp(15), dp(14), dp(15), dp(14));
+        about.addView(text("Ritmo 2.3.0", 14, TEXT, true));
+        about.addView(text("Gestão de rotina, foco, hábitos e planejamento. Seus dados continuam locais no aparelho.", 10, MUTED, false));
+        TextView storage = text(store.tasks.size() + " tarefas · " + store.routines.size() + " hábitos · " + store.focusSessions.size() + " sessões de foco", 10, BRAND, true);
+        storage.setPadding(0, dp(8), 0, 0);
+        about.addView(storage);
+        body.addView(about);
+
+        return wrapScroll(body);
+    }
+
     private View buildOrganizePage() {
         LinearLayout body=body();
-        body.addView(sectionHeader("Organização",null,null));
+        body.addView(sectionHeader("Progresso & organização",null,null));
         body.addView(organizeTabs());
         if("planner".equals(organizeTab)) body.addView(plannerSection());
         else if("projects".equals(organizeTab)) body.addView(projectsSection());
@@ -904,7 +1350,7 @@ public class MainActivity extends Activity {
     private View organizeTabs(){
         HorizontalScrollView hs=new HorizontalScrollView(this); hs.setHorizontalScrollBarEnabled(false);
         LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        String[][] tabs={{"kanban","Kanban"},{"planner","Planejador"},{"projects","Projetos"},{"goals","Metas"},{"habits","Hábitos"},{"stats","Estatísticas"}};
+        String[][] tabs={{"stats","Estatísticas"},{"habits","Hábitos"},{"planner","Planejador"},{"kanban","Kanban"},{"projects","Projetos"},{"goals","Metas"}};
         for(String[] t:tabs){ Button b=chip(t[1],organizeTab.equals(t[0])); b.setOnClickListener(v->{organizeTab=t[0];showPage("organize");}); row.addView(b); }
         hs.addView(row); hs.setPadding(0,0,0,dp(10)); return hs;
     }
@@ -1022,39 +1468,118 @@ public class MainActivity extends Activity {
 
     private View habitsSection(){
         LinearLayout wrap=new LinearLayout(this);wrap.setOrientation(LinearLayout.VERTICAL);
-        Button add=primaryButton("+ Novo hábito"); add.setOnClickListener(v->showRoutineDialog(null)); wrap.addView(add,marginBottom(dp(10)));
-        LinearLayout card=cardBox();card.setOrientation(LinearLayout.VERTICAL);card.setPadding(dp(14),dp(8),dp(14),dp(8));
-        if(store.routines.isEmpty()) card.addView(text("Nenhum hábito cadastrado.",13,MUTED,false));
-        for(int i=0;i<store.routines.size();i++){
-            Store.Routine r=store.routines.get(i); LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(0,dp(9),0,dp(9));
-            Button check=smallCheck(r.doneOn(Store.today()));check.setEnabled(r.dueOn(Store.today()));check.setAlpha(r.dueOn(Store.today())?1f:.35f);
-            check.setOnClickListener(v->{r.toggle(Store.today());store.save();showPage("organize");});row.addView(check,new LinearLayout.LayoutParams(dp(36),dp(36)));
-            LinearLayout info=new LinearLayout(this);info.setOrientation(LinearLayout.VERTICAL);info.setPadding(dp(10),0,dp(8),0);
-            info.addView(text(r.title,13,TEXT,true)); info.addView(text(frequencyLabel(r.frequency)+" · "+r.minutes+" min",10,MUTED,false));
-            if(r.detail!=null&&!r.detail.isEmpty())info.addView(text(r.detail,10,MUTED,false));
-            info.setOnClickListener(v->showRoutineDialog(r)); row.addView(info,new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f));
-            LinearLayout streak=new LinearLayout(this);streak.setOrientation(LinearLayout.VERTICAL);streak.setGravity(Gravity.CENTER);
-            streak.addView(text("🔥 "+r.streak(Store.today()),14,WARN,true));streak.addView(text("sequência",9,MUTED,false));row.addView(streak);
-            row.setOnLongClickListener(v->{confirmDeleteRoutine(r);return true;});card.addView(row);if(i<store.routines.size()-1)card.addView(divider());
+        Button add=primaryButton("+ Novo hábito");
+        add.setOnClickListener(v->showRoutineDialog(null));
+        wrap.addView(add,marginBottom(dp(10)));
+
+        if(store.routines.isEmpty()){
+            wrap.addView(emptyState(R.drawable.ic_routine, "Nenhum hábito cadastrado", "Crie uma rotina simples e repita até ela ficar automática.", "Criar hábito", v -> showRoutineDialog(null)));
+            return wrap;
         }
-        wrap.addView(card);return wrap;
+
+        LinearLayout card=cardBox();
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14),dp(6),dp(14),dp(6));
+        for(int i=0;i<store.routines.size();i++){
+            Store.Routine r=store.routines.get(i);
+            card.addView(routineRow(r, false));
+            if(i<store.routines.size()-1)card.addView(divider());
+        }
+        wrap.addView(card);
+        return wrap;
     }
 
     private View statsSection(){
-        LinearLayout wrap=new LinearLayout(this);wrap.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout row1=new LinearLayout(this);row1.setOrientation(LinearLayout.HORIZONTAL);
-        row1.addView(metric(store.completionRateLast7()+"%","Taxa de conclusão"),weightedMargin(0,4));
-        row1.addView(metric(humanMinutes(store.totalCompletedMinutesLast7()),"Tempo concluído"),weightedMargin(4,0));
-        wrap.addView(row1,marginBottom(dp(8)));
-        LinearLayout row2=new LinearLayout(this);row2.setOrientation(LinearLayout.HORIZONTAL);
-        row2.addView(metric(String.valueOf(store.overdueOpenCount()),"Atrasadas"),weightedMargin(0,4));
-        row2.addView(metric(store.bestCompletionDayLast7(),"Melhor dia"),weightedMargin(4,0));
-        wrap.addView(row2);
+        LinearLayout wrap=new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
 
-        TextView h1=text("Produtividade semanal",16,TEXT,true);h1.setPadding(dp(3),dp(20),0,dp(8));wrap.addView(h1);wrap.addView(weeklyChartCard());
-        TextView h2=text("Distribuição por categoria",16,TEXT,true);h2.setPadding(dp(3),dp(20),0,dp(8));wrap.addView(h2);wrap.addView(categoryDistributionCard());
-        TextView h3=text("Leitura da semana",16,TEXT,true);h3.setPadding(dp(3),dp(20),0,dp(8));wrap.addView(h3);wrap.addView(insightsCard());
+        LinearLayout row1=new LinearLayout(this);row1.setOrientation(LinearLayout.HORIZONTAL);
+        row1.addView(metric(store.completionRateLast7()+"%","Conclusão"),weightedMargin(0,4));
+        row1.addView(metric(store.executionEfficiencyLast7()+"%","Execução real"),weightedMargin(4,0));
+        wrap.addView(row1,marginBottom(dp(8)));
+
+        LinearLayout row2=new LinearLayout(this);row2.setOrientation(LinearLayout.HORIZONTAL);
+        row2.addView(metric(store.averageScoreLast30()+"%","Consistência 30d"),weightedMargin(0,4));
+        row2.addView(metric(humanMinutes(store.focusMinutesLast7()),"Foco 7d"),weightedMargin(4,0));
+        wrap.addView(row2,marginBottom(dp(8)));
+
+        LinearLayout row3=new LinearLayout(this);row3.setOrientation(LinearLayout.HORIZONTAL);
+        row3.addView(metric(String.valueOf(store.overdueOpenCount()),"Atrasadas"),weightedMargin(0,4));
+        row3.addView(metric(store.bestCompletionDayLast7(),"Melhor dia"),weightedMargin(4,0));
+        wrap.addView(row3);
+
+        TextView h0=text("Consistência mensal",16,TEXT,true);
+        h0.setPadding(dp(3),dp(20),0,dp(8));
+        wrap.addView(h0);
+        wrap.addView(monthlyConsistencyCard());
+
+        TextView hf=text("Sessões de foco",16,TEXT,true);
+        hf.setPadding(dp(3),dp(20),0,dp(8));
+        wrap.addView(hf);
+        wrap.addView(focusStatsCard());
+
+        TextView h1=text("Produtividade semanal",16,TEXT,true);
+        h1.setPadding(dp(3),dp(20),0,dp(8));
+        wrap.addView(h1);
+        wrap.addView(weeklyChartCard());
+
+        TextView h2=text("Distribuição por categoria",16,TEXT,true);
+        h2.setPadding(dp(3),dp(20),0,dp(8));
+        wrap.addView(h2);
+        wrap.addView(categoryDistributionCard());
+
+        TextView h3=text("Leitura da semana",16,TEXT,true);
+        h3.setPadding(dp(3),dp(20),0,dp(8));
+        wrap.addView(h3);
+        wrap.addView(insightsCard());
         return wrap;
+    }
+
+    private View monthlyConsistencyCard() {
+        LinearLayout card = cardBox();
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(15), dp(14), dp(15), dp(12));
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        top.addView(text("Últimos 30 dias", 13, TEXT, true), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        top.addView(text(store.averageScoreLast30() + "% média", 11, BRAND, true));
+        card.addView(top);
+        MonthlyHeatmapView heat = new MonthlyHeatmapView(this);
+        heat.setData(store.last30Scores());
+        heat.setColors(BRAND, PANEL2, MUTED);
+        heat.setContentDescription("Mapa de consistência dos últimos 30 dias");
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(190));
+        hp.setMargins(0, dp(10), 0, 0);
+        card.addView(heat, hp);
+        card.addView(text("A intensidade representa a combinação entre tarefas e hábitos concluídos em cada dia.", 9, MUTED, false));
+        return card;
+    }
+
+    private View focusStatsCard() {
+        LinearLayout card = cardBox();
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(15), dp(14), dp(15), dp(10));
+
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout info = new LinearLayout(this);
+        info.setOrientation(LinearLayout.VERTICAL);
+        info.addView(text(store.focusSessionCountLast7() + " sessões nesta semana", 13, TEXT, true));
+        String adherence = store.focusPlannedMinutesLast7() > 0 ? " · " + store.focusAdherenceLast7() + "% do planejado" : "";
+        info.addView(text(humanMinutes(store.focusMinutesLast7()) + " de foco registrado" + adherence, 10, MUTED, false));
+        top.addView(info, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Button free = secondaryButton("Iniciar foco");
+        free.setOnClickListener(v -> startFocus(null));
+        top.addView(free, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44)));
+        card.addView(top);
+
+        WeeklyBarChart chart = new WeeklyBarChart(this);
+        chart.setColors(WARN, MUTED, PANEL2);
+        chart.setData(store.last7FocusMinutes(), store.last7Labels());
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(145));
+        cp.setMargins(0, dp(10), 0, 0);
+        card.addView(chart, cp);
+        return card;
     }
 
     private View categoryDistributionCard(){
@@ -1364,6 +1889,7 @@ public class MainActivity extends Activity {
                 .setPositiveButton("Desfazer", (d, w) -> {
                     int restored = SmartPlanner.undo(this, store);
                     try { ReminderScheduler.rescheduleAll(this, store); } catch (Throwable ignored) { }
+                    try { RoutineReminderScheduler.rescheduleAll(this, store); } catch (Throwable ignored) { }
                     Toast.makeText(this, restored + " tarefa(s) restaurada(s).", Toast.LENGTH_SHORT).show();
                     organizeTab = "planner";
                     showPage("organize");
@@ -1503,17 +2029,18 @@ public class MainActivity extends Activity {
 
     private void showTaskActions(Store.Task t){
         String planningAction = !"none".equals(t.recurrence) ? "Recorrente · planejamento fixo" : (t.flexible ? "Marcar como fixa" : "Marcar como flexível");
-        String[] actions={"Editar","Subtarefas ("+t.completedSubtasks()+"/"+t.subtasks.size()+")",planningAction,"Mover para A fazer","Mover para Em andamento","Mover para Concluído","Excluir"};
+        String[] actions={"Iniciar foco","Editar","Subtarefas ("+t.completedSubtasks()+"/"+t.subtasks.size()+")",planningAction,"Mover para A fazer","Mover para Em andamento","Mover para Concluído","Excluir"};
         new AlertDialog.Builder(this).setTitle(t.title).setItems(actions,(d,w)->{
-            if(w==0)showTaskDialog(t,false,null);
-            else if(w==1)showSubtaskDialog(t);
-            else if(w==2){
+            if(w==0) startFocus(t);
+            else if(w==1)showTaskDialog(t,false,null);
+            else if(w==2)showSubtaskDialog(t);
+            else if(w==3){
                 if(!"none".equals(t.recurrence))Toast.makeText(this,"Tarefas recorrentes permanecem fixas.",Toast.LENGTH_SHORT).show();
                 else{t.flexible=!t.flexible;if(t.deadline==null||t.deadline.length()!=10)t.deadline=t.date;store.save();Toast.makeText(this,t.flexible?"Tarefa marcada como flexível.":"Tarefa marcada como fixa.",Toast.LENGTH_SHORT).show();showPage(currentPage);}
             }
-            else if(w==3){store.setTaskStatus(t,"todo");ReminderScheduler.schedule(this,t);showPage(currentPage);}
-            else if(w==4){store.setTaskStatus(t,"doing");ReminderScheduler.schedule(this,t);showPage(currentPage);}
-            else if(w==5){store.setTaskStatus(t,"done");ReminderScheduler.cancel(this,t.id);showPage(currentPage);}
+            else if(w==4){store.setTaskStatus(t,"todo");ReminderScheduler.schedule(this,t);showPage(currentPage);}
+            else if(w==5){store.setTaskStatus(t,"doing");ReminderScheduler.schedule(this,t);showPage(currentPage);}
+            else if(w==6){store.setTaskStatus(t,"done");ReminderScheduler.cancel(this,t.id);showPage(currentPage);}
             else confirmDeleteTask(t);
         }).show();
     }
@@ -1542,12 +2069,104 @@ public class MainActivity extends Activity {
     }
 
     private void showRoutineDialog(Store.Routine existing){
-        LinearLayout form=dialogForm();EditText title=input("Nome do hábito");EditText detail=input("Descrição curta");EditText minutes=input("Minutos");minutes.setInputType(InputType.TYPE_CLASS_NUMBER);Spinner frequency=spinner(new String[]{"Todos os dias","Seg a Sex","Semanal"});
-        form.addView(fieldLabel("HÁBITO"));form.addView(title);form.addView(fieldLabel("DESCRIÇÃO"));form.addView(detail);form.addView(formRow(fieldBox("DURAÇÃO",minutes),fieldBox("FREQUÊNCIA",frequency)));
-        minutes.setText("15");if(existing!=null){title.setText(existing.title);detail.setText(existing.detail);minutes.setText(String.valueOf(existing.minutes));setSpinner(frequency,frequencyLabel(existing.frequency));}
-        AlertDialog.Builder b=new AlertDialog.Builder(this).setTitle(existing==null?"Novo hábito":"Editar hábito").setView(form).setNegativeButton("Cancelar",null).setPositiveButton("Salvar",null);if(existing!=null)b.setNeutralButton("Excluir",null);AlertDialog dlg=b.create();dlg.show();
-        if(existing!=null){Button del=dlg.getButton(AlertDialog.BUTTON_NEUTRAL);del.setTextColor(BAD);del.setOnClickListener(v->{dlg.dismiss();confirmDeleteRoutine(existing);});}
-        dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{String ttl=title.getText().toString().trim();if(ttl.isEmpty()){title.setError("Informe o hábito");return;}String f=frequencyValue(String.valueOf(frequency.getSelectedItem()));int mins=parseInt(minutes.getText().toString(),15);if(existing==null)store.routines.add(new Store.Routine(System.currentTimeMillis(),ttl,detail.getText().toString().trim(),f,mins,Store.today()));else{existing.title=ttl;existing.detail=detail.getText().toString().trim();existing.frequency=f;existing.minutes=mins;}store.save();dlg.dismiss();organizeTab="habits";showPage("organize");});
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout form=dialogForm();
+        scroll.addView(form);
+
+        EditText title=input("Nome do hábito");
+        EditText detail=input("Descrição curta");
+        EditText time=input("Horário");
+        time.setFocusable(false);
+        time.setOnClickListener(v -> pickTime(time));
+        EditText minutes=input("Minutos");
+        minutes.setInputType(InputType.TYPE_CLASS_NUMBER);
+        Spinner frequency=spinner(new String[]{"Todos os dias","Seg a Sex","Semanal","Dias específicos"});
+        Spinner category=spinner(new String[]{"Pessoal","Saúde","Estudos","Trabalho","Projeto","Financeiro"});
+        Spinner accent=spinner(new String[]{"Violeta","Menta","Âmbar","Rosa","Azul"});
+        Spinner reminder=spinner(new String[]{"Sem lembrete","Na hora","10 min antes","30 min antes","1 h antes"});
+        final int[] daysMask = { existing == null ? 0 : existing.daysMask };
+        Button days = secondaryButton(daysMask[0] == 0 ? "Selecionar dias" : daysMaskLabel(daysMask[0]));
+        days.setOnClickListener(v -> showDaysPicker(daysMask, days));
+
+        form.addView(fieldLabel("HÁBITO"));form.addView(title);
+        form.addView(fieldLabel("DESCRIÇÃO"));form.addView(detail);
+        form.addView(formRow(fieldBox("HORÁRIO",time),fieldBox("DURAÇÃO",minutes)));
+        form.addView(formRow(fieldBox("FREQUÊNCIA",frequency),fieldBox("DIAS",days)));
+        form.addView(formRow(fieldBox("CATEGORIA",category),fieldBox("COR",accent)));
+        form.addView(fieldLabel("LEMBRETE")); form.addView(reminder);
+
+        TextView hint = text("O lembrete é local e funciona mesmo sem internet. A cor ajuda a reconhecer a rotina rapidamente.", 9, MUTED, false);
+        hint.setPadding(dp(2), dp(5), dp(2), dp(8));
+        form.addView(hint);
+
+        minutes.setText("15");
+        setSpinner(accent,"Violeta");
+        if(existing!=null){
+            title.setText(existing.title);
+            detail.setText(existing.detail);
+            time.setText(existing.time);
+            minutes.setText(String.valueOf(existing.minutes));
+            setSpinner(frequency,frequencyLabel(existing.frequency));
+            setSpinner(category,existing.category);
+            setSpinner(accent,routineAccentLabel(existing.accent));
+            setSpinner(reminder,reminderLabel(existing.reminderMinutes));
+        }
+
+        AlertDialog.Builder b=new AlertDialog.Builder(this)
+                .setTitle(existing==null?"Novo hábito":"Editar hábito")
+                .setView(scroll)
+                .setNegativeButton("Cancelar",null)
+                .setPositiveButton("Salvar",null);
+        if(existing!=null)b.setNeutralButton("Excluir",null);
+        AlertDialog dlg=b.create();
+        dlg.show();
+
+        if(existing!=null){
+            Button del=dlg.getButton(AlertDialog.BUTTON_NEUTRAL);
+            del.setTextColor(BAD);
+            del.setOnClickListener(v->{dlg.dismiss();confirmDeleteRoutine(existing);});
+        }
+
+        dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+            String ttl=title.getText().toString().trim();
+            if(ttl.isEmpty()){title.setError("Informe o hábito");return;}
+            String f=frequencyValue(String.valueOf(frequency.getSelectedItem()));
+            if ("custom".equals(f) && daysMask[0] == 0) {
+                Toast.makeText(this,"Selecione pelo menos um dia da semana.",Toast.LENGTH_SHORT).show();
+                return;
+            }
+            int mins=Math.max(0,parseInt(minutes.getText().toString(),15));
+            int reminderMinutes=reminderValue(String.valueOf(reminder.getSelectedItem()));
+            if(reminderMinutes>=0 && time.getText().toString().trim().isEmpty()){
+                Toast.makeText(this,"Defina um horário para usar lembrete.",Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if(existing==null){
+                Store.Routine r = new Store.Routine(
+                        System.currentTimeMillis(), ttl, detail.getText().toString().trim(), f, mins, Store.today(),
+                        time.getText().toString(), String.valueOf(category.getSelectedItem()),
+                        routineAccentKey(String.valueOf(accent.getSelectedItem())), reminderMinutes, daysMask[0]
+                );
+                store.routines.add(r);
+                store.save();
+                RoutineReminderScheduler.schedule(this, r);
+            }else{
+                existing.title=ttl;
+                existing.detail=detail.getText().toString().trim();
+                existing.frequency=f;
+                existing.minutes=mins;
+                existing.time=time.getText().toString();
+                existing.category=String.valueOf(category.getSelectedItem());
+                existing.accent=routineAccentKey(String.valueOf(accent.getSelectedItem()));
+                existing.reminderMinutes=reminderMinutes;
+                existing.daysMask=daysMask[0];
+                store.save();
+                RoutineReminderScheduler.schedule(this, existing);
+            }
+            dlg.dismiss();
+            organizeTab="habits";
+            showPage("organize");
+        });
     }
 
     private void cycleTask(Store.Task t){
@@ -1556,7 +2175,7 @@ public class MainActivity extends Activity {
 
     private void confirmDeleteTask(Store.Task t){new AlertDialog.Builder(this).setTitle("Excluir tarefa?").setMessage(t.title).setNegativeButton("Cancelar",null).setPositiveButton("Excluir",(d,w)->{ReminderScheduler.cancel(this,t.id);store.tasks.remove(t);store.save();showPage(currentPage);}).show();}
     private void confirmDeleteGoal(Store.Goal g){new AlertDialog.Builder(this).setTitle("Excluir meta?").setMessage(g.title).setNegativeButton("Cancelar",null).setPositiveButton("Excluir",(d,w)->{store.goals.remove(g);store.save();organizeTab="goals";showPage("organize");}).show();}
-    private void confirmDeleteRoutine(Store.Routine r){new AlertDialog.Builder(this).setTitle("Excluir hábito?").setMessage(r.title).setNegativeButton("Cancelar",null).setPositiveButton("Excluir",(d,w)->{store.routines.remove(r);store.save();organizeTab="habits";showPage("organize");}).show();}
+    private void confirmDeleteRoutine(Store.Routine r){new AlertDialog.Builder(this).setTitle("Excluir hábito?").setMessage(r.title).setNegativeButton("Cancelar",null).setPositiveButton("Excluir",(d,w)->{RoutineReminderScheduler.cancel(this,r.id);store.routines.remove(r);store.save();organizeTab="habits";showPage("organize");}).show();}
     private void confirmClearDone(){new AlertDialog.Builder(this).setTitle("Limpar concluídas?").setMessage("O histórico de produtividade será preservado, mas as tarefas concluídas sairão da lista.").setNegativeButton("Cancelar",null).setPositiveButton("Limpar",(d,w)->{List<Store.Task> keep=new ArrayList<>();for(Store.Task t:store.tasks)if(!"done".equals(t.status)||!"none".equals(t.recurrence))keep.add(t);store.tasks.clear();store.tasks.addAll(keep);store.save();showPage("tasks");}).show();}
 
     private void pickDate(EditText target){
@@ -1575,18 +2194,42 @@ public class MainActivity extends Activity {
     }
 
     private Button chip(String label,boolean active){
-        Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextSize(12);b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);b.setTextColor(active?Color.WHITE:MUTED);b.setPadding(dp(13),0,dp(13),0);b.setMinHeight(0);b.setMinWidth(0);b.setBackground(rounded(active?BRAND:PANEL,99,!active));
+        Button b=new Button(this);
+        b.setText(label);b.setAllCaps(false);b.setTextSize(11);b.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));
+        b.setTextColor(active?Color.WHITE:MUTED);
+        b.setPadding(dp(13),0,dp(13),0);b.setMinHeight(dp(40));b.setMinWidth(dp(48));
+        b.setBackground(rounded(active?BRAND:PANEL,99,!active));
+        makePressable(b);
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,dp(40));p.setMargins(0,0,dp(7),0);b.setLayoutParams(p);return b;
     }
 
-    private Button flatButton(String label){Button b=new Button(this);b.setText(label);b.setTextSize(25);b.setTextColor(TEXT);b.setAllCaps(false);b.setMinHeight(0);b.setMinWidth(0);b.setPadding(0,0,0,dp(3));b.setBackground(rounded(PANEL2,12,false));return b;}
-    private Button primaryButton(String label){Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextSize(13);b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);b.setTextColor(Color.WHITE);b.setMinHeight(0);b.setBackground(rounded(BRAND,15,false));b.setPadding(dp(14),dp(11),dp(14),dp(11));return b;}
-    private Button smallCheck(boolean done){Button b=new Button(this);b.setText(done?"✓":"");b.setTextSize(15);b.setTextColor(Color.WHITE);b.setAllCaps(false);b.setMinWidth(0);b.setMinHeight(0);b.setPadding(0,0,0,0);b.setBackground(rounded(done?GOOD:PANEL2,10,!done));return b;}
+    private Button flatButton(String label){
+        Button b=new Button(this);b.setText(label);b.setTextSize(24);b.setTextColor(TEXT);b.setAllCaps(false);b.setMinHeight(dp(48));b.setMinWidth(dp(48));b.setPadding(0,0,0,dp(3));b.setBackground(rounded(PANEL2,12,false));makePressable(b);return b;
+    }
 
-    private ImageButton iconButton(int res,int tint){ImageButton b=new ImageButton(this);b.setImageResource(res);b.setColorFilter(tint);b.setScaleType(ImageView.ScaleType.CENTER);b.setBackground(rounded(PANEL,14,true));b.setPadding(dp(10),dp(10),dp(10),dp(10));return b;}
+    private Button primaryButton(String label){
+        Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextSize(13);b.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));
+        b.setTextColor(Color.WHITE);b.setMinHeight(dp(48));b.setBackground(rounded(BRAND,12,false));b.setPadding(dp(14),dp(10),dp(14),dp(10));b.setElevation(dp(2));makePressable(b);return b;
+    }
 
-    private LinearLayout cardBox(){LinearLayout l=new LinearLayout(this);l.setBackground(rounded(PANEL,19,true));return l;}
-    private View emptyCard(String message){TextView t=text(message,13,MUTED,false);t.setGravity(Gravity.CENTER);t.setPadding(dp(16),dp(22),dp(16),dp(22));t.setBackground(rounded(PANEL,19,true));return t;}
+    private Button smallCheck(boolean done){
+        Button b=new Button(this);b.setText(done?"✓":"");b.setTextSize(16);b.setTextColor(Color.WHITE);b.setAllCaps(false);b.setMinWidth(dp(38));b.setMinHeight(dp(38));b.setPadding(0,0,0,0);
+        b.setBackground(rounded(done?GOOD:PANEL2,12,!done));makePressable(b);return b;
+    }
+
+    private ImageButton iconButton(int res,int tint){
+        ImageButton b=new ImageButton(this);b.setImageResource(res);b.setColorFilter(tint);b.setScaleType(ImageView.ScaleType.CENTER);
+        b.setBackground(rounded(PANEL,12,true));b.setPadding(dp(10),dp(10),dp(10),dp(10));b.setMinimumWidth(dp(44));b.setMinimumHeight(dp(44));makePressable(b);return b;
+    }
+
+    private LinearLayout cardBox(){
+        LinearLayout l=new LinearLayout(this);l.setBackground(rounded(PANEL,16,true));l.setElevation(darkMode?dp(1):dp(3));return l;
+    }
+
+    private View emptyCard(String message){
+        LinearLayout box=cardBox();box.setGravity(Gravity.CENTER);box.setPadding(dp(18),dp(22),dp(18),dp(22));
+        TextView t=text(message,12,MUTED,false);t.setGravity(Gravity.CENTER);box.addView(t);return box;
+    }
     private View divider(){View v=new View(this);v.setBackgroundColor(LINE);v.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,dp(1)));return v;}
 
     private ScrollView wrapScroll(LinearLayout body){
@@ -1615,7 +2258,137 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f);rp.setMargins(dp(5),0,0,dp(7));row.addView(right,rp);return row;
     }
 
-    private Button secondaryButton(String label){Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextSize(12);b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);b.setTextColor(BRAND);b.setMinHeight(0);b.setBackground(rounded(PANEL2,13,true));b.setPadding(dp(12),dp(10),dp(12),dp(10));return b;}
+    private Button secondaryButton(String label){Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextSize(12);b.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));b.setTextColor(BRAND);b.setMinHeight(dp(44));b.setBackground(rounded(PANEL2,12,true));b.setPadding(dp(12),dp(9),dp(12),dp(9));makePressable(b);return b;}
+
+    private TextView miniBadge(String label, int color) {
+        TextView badge = text(label, 9, color, true);
+        badge.setPadding(dp(7), dp(3), dp(7), dp(3));
+        badge.setBackground(rounded(Color.argb(darkMode ? 50 : 24, Color.red(color), Color.green(color), Color.blue(color)), 99, false));
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        p.setMargins(0, 0, dp(5), 0);
+        badge.setLayoutParams(p);
+        return badge;
+    }
+
+    private View emptyInline(String message) {
+        TextView t = text(message, 12, MUTED, false);
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(dp(10), dp(18), dp(10), dp(18));
+        return t;
+    }
+
+    private View emptyState(int iconRes, String title, String message, String action, View.OnClickListener listener) {
+        LinearLayout box = cardBox();
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setGravity(Gravity.CENTER);
+        box.setPadding(dp(22), dp(26), dp(22), dp(24));
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(iconRes);
+        icon.setColorFilter(BRAND);
+        icon.setPadding(dp(11),dp(11),dp(11),dp(11));
+        icon.setBackground(rounded(BRAND_SOFT, 16, false));
+        box.addView(icon, new LinearLayout.LayoutParams(dp(52), dp(52)));
+
+        TextView h = text(title, 14, TEXT, true);
+        h.setGravity(Gravity.CENTER);
+        h.setPadding(0, dp(12), 0, dp(4));
+        box.addView(h);
+
+        TextView m = text(message, 11, MUTED, false);
+        m.setGravity(Gravity.CENTER);
+        box.addView(m);
+
+        if (action != null) {
+            Button b = secondaryButton(action);
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44));
+            p.setMargins(0, dp(14), 0, 0);
+            box.addView(b, p);
+            if (listener != null) b.setOnClickListener(listener);
+        }
+        return box;
+    }
+
+    private void animateTaskToggle(View card, Button check, TextView title, Store.Task task) {
+        boolean willDone = !"done".equals(task.status);
+        check.setText(willDone ? "✓" : "");
+        check.setBackground(rounded(willDone ? GOOD : PANEL2, 12, !willDone));
+        title.setAlpha(willDone ? .5f : 1f);
+        if (willDone) title.setPaintFlags(title.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+        else title.setPaintFlags(title.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
+        haptic(check, willDone ? (Build.VERSION.SDK_INT >= 30 ? HapticFeedbackConstants.CONFIRM : HapticFeedbackConstants.CLOCK_TICK) : HapticFeedbackConstants.CLOCK_TICK);
+
+        if (!reduceMotion) {
+            check.setScaleX(.72f); check.setScaleY(.72f);
+            check.animate().scaleX(1f).scaleY(1f).setDuration(220L).start();
+            if (willDone) {
+                card.animate().alpha(.72f).setDuration(150L).withEndAction(() -> card.animate().alpha(1f).setDuration(90L).start()).start();
+            }
+        }
+
+        store.toggleTask(task);
+        if ("done".equals(task.status)) ReminderScheduler.cancel(this, task.id); else ReminderScheduler.schedule(this, task);
+        card.postDelayed(() -> showPage(currentPage), reduceMotion ? 0L : 210L);
+    }
+
+    private void animateRoutineToggle(View row, Button check, TextView title, Store.Routine routine) {
+        boolean willDone = !routine.doneOn(Store.today());
+        check.setText(willDone ? "✓" : "");
+        check.setBackground(rounded(willDone ? GOOD : PANEL2, 12, !willDone));
+        title.setAlpha(willDone ? .55f : 1f);
+        if (willDone) title.setPaintFlags(title.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+        else title.setPaintFlags(title.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
+        haptic(check, willDone ? (Build.VERSION.SDK_INT >= 30 ? HapticFeedbackConstants.CONFIRM : HapticFeedbackConstants.CLOCK_TICK) : HapticFeedbackConstants.CLOCK_TICK);
+        if (!reduceMotion) {
+            check.setScaleX(.72f); check.setScaleY(.72f);
+            check.animate().scaleX(1f).scaleY(1f).setDuration(220L).start();
+        }
+        routine.toggle(Store.today());
+        store.save();
+        RoutineReminderScheduler.schedule(this, routine);
+        row.postDelayed(() -> showPage(currentPage), reduceMotion ? 0L : 180L);
+    }
+
+    private void makePressable(View view) {
+        if (view == null || reduceMotion) return;
+        view.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                v.animate().scaleX(.985f).scaleY(.985f).setDuration(70L).start();
+            } else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+                v.animate().scaleX(1f).scaleY(1f).setDuration(120L).start();
+            }
+            return false;
+        });
+    }
+
+    private void haptic(View view, int feedback) {
+        if (!getSharedPreferences("ritmo_ui", MODE_PRIVATE).getBoolean("haptics", true)) return;
+        try { view.performHapticFeedback(feedback); } catch (Throwable ignored) { }
+    }
+
+    private int routineAccentColor(String key) {
+        if ("mint".equals(key)) return MINT;
+        if ("amber".equals(key)) return WARN;
+        if ("rose".equals(key)) return BAD;
+        if ("blue".equals(key)) return darkMode ? Color.rgb(96,165,250) : Color.rgb(37,99,235);
+        return BRAND;
+    }
+
+    private String routineAccentKey(String label) {
+        if ("Menta".equals(label)) return "mint";
+        if ("Âmbar".equals(label)) return "amber";
+        if ("Rosa".equals(label)) return "rose";
+        if ("Azul".equals(label)) return "blue";
+        return "violet";
+    }
+
+    private String routineAccentLabel(String key) {
+        if ("mint".equals(key)) return "Menta";
+        if ("amber".equals(key)) return "Âmbar";
+        if ("rose".equals(key)) return "Rosa";
+        if ("blue".equals(key)) return "Azul";
+        return "Violeta";
+    }
 
     private String[] projectLabels(){String[] values=new String[store.projects.size()+1];values[0]="Sem projeto";for(int i=0;i<store.projects.size();i++)values[i+1]=store.projects.get(i).title;return values;}
     private String projectLabel(long id){Store.Project p=store.findProject(id);return p==null?"Sem projeto":p.title;}
@@ -1626,7 +2399,7 @@ public class MainActivity extends Activity {
     private Spinner spinner(String[] items){Spinner s=new Spinner(this);ArrayAdapter<String> a=new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,items);s.setAdapter(a);s.setBackground(rounded(PANEL2,12,false));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,dp(46));p.setMargins(0,0,0,dp(9));s.setLayoutParams(p);return s;}
     private void setSpinner(Spinner s,String value){for(int i=0;i<s.getCount();i++)if(String.valueOf(s.getItemAtPosition(i)).equals(value)){s.setSelection(i);return;}}
 
-    private TextView text(String value,int sp,int color,boolean bold){TextView t=new TextView(this);t.setText(value);t.setTextSize(sp);t.setTextColor(color);t.setTypeface(Typeface.DEFAULT,bold?Typeface.BOLD:Typeface.NORMAL);t.setLineSpacing(0f,1.08f);return t;}
+    private TextView text(String value,int sp,int color,boolean bold){TextView t=new TextView(this);t.setText(value);t.setTextSize(sp);t.setTextColor(color);t.setTypeface(Typeface.create("sans-serif",bold?Typeface.BOLD:Typeface.NORMAL));t.setLineSpacing(0f,1.10f);return t;}
 
     private GradientDrawable rounded(int color,int radiusDp,boolean stroke){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(radiusDp));if(stroke)g.setStroke(dp(1),LINE);return g;}
     private LinearLayout.LayoutParams marginBottom(int bottom){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);p.setMargins(0,0,0,bottom);return p;}
@@ -1645,8 +2418,34 @@ public class MainActivity extends Activity {
 
     private String recurrenceLabel(String r){if("daily".equals(r))return "Todos os dias";if("weekdays".equals(r))return "Seg a Sex";if("weekly".equals(r))return "Semanal";if("monthly".equals(r))return "Mensal";return "Sem repetição";}
     private String recurrenceValue(String r){if("Todos os dias".equals(r))return "daily";if("Seg a Sex".equals(r))return "weekdays";if("Semanal".equals(r))return "weekly";if("Mensal".equals(r))return "monthly";return "none";}
-    private String frequencyLabel(String f){if("weekdays".equals(f))return "Seg a Sex";if("weekly".equals(f))return "Semanal";return "Todos os dias";}
-    private String frequencyValue(String f){if("Seg a Sex".equals(f))return "weekdays";if("Semanal".equals(f))return "weekly";return "daily";}
+    private String frequencyLabel(String f){if("weekdays".equals(f))return "Seg a Sex";if("weekly".equals(f))return "Semanal";if("custom".equals(f))return "Dias específicos";return "Todos os dias";}
+    private String frequencyValue(String f){if("Seg a Sex".equals(f))return "weekdays";if("Semanal".equals(f))return "weekly";if("Dias específicos".equals(f))return "custom";return "daily";}
+    private void showDaysPicker(final int[] maskHolder, Button target) {
+        String[] labels = {"Dom","Seg","Ter","Qua","Qui","Sex","Sáb"};
+        boolean[] checked = new boolean[7];
+        for (int i = 0; i < 7; i++) checked[i] = (maskHolder[0] & (1 << i)) != 0;
+        new AlertDialog.Builder(this)
+                .setTitle("Dias da semana")
+                .setMultiChoiceItems(labels, checked, (dialog, which, isChecked) -> {
+                    if (isChecked) maskHolder[0] |= (1 << which);
+                    else maskHolder[0] &= ~(1 << which);
+                })
+                .setNegativeButton("Cancelar", null)
+                .setPositiveButton("Aplicar", (dialog, which) -> target.setText(maskHolder[0] == 0 ? "Selecionar dias" : daysMaskLabel(maskHolder[0])))
+                .show();
+    }
+
+    private String daysMaskLabel(int mask) {
+        String[] labels = {"D","S","T","Q","Q","S","S"};
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < 7; i++) {
+            if ((mask & (1 << i)) == 0) continue;
+            if (out.length() > 0) out.append(" · ");
+            out.append(labels[i]);
+        }
+        return out.length() == 0 ? "Selecionar dias" : out.toString();
+    }
+
     private int reminderValue(String l){if("Na hora".equals(l))return 0;if("10 min antes".equals(l))return 10;if("30 min antes".equals(l))return 30;if("1 h antes".equals(l))return 60;if("1 dia antes".equals(l))return 1440;return -1;}
     private String reminderLabel(int m){if(m==0)return "Na hora";if(m==10)return "10 min antes";if(m==30)return "30 min antes";if(m==60)return "1 h antes";if(m==1440)return "1 dia antes";return "Sem lembrete";}
 
