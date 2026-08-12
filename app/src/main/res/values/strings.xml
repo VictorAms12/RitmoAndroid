@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Ritmo</string>
+    <string name="notification_channel_name">Lembretes do Ritmo</string>
+    <string name="notification_channel_description">Avisos de tarefas e compromissos</string>
 </resources>

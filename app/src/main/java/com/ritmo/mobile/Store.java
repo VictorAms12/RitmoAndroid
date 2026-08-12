@@ -8,9 +8,12 @@ import org.json.JSONObject;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class Store {
     private static final String PREFS = "ritmo_prefs";
@@ -19,16 +22,44 @@ public class Store {
     public final List<Task> tasks = new ArrayList<>();
     public final List<Goal> goals = new ArrayList<>();
     public final List<Routine> routines = new ArrayList<>();
+    public final List<Completion> completions = new ArrayList<>();
 
     private final SharedPreferences prefs;
 
     public Store(Context context) {
         prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         load();
+        migrateLegacyCompletionHistory();
+        normalizeRecurringTasks();
     }
 
     public static String today() {
-        return new SimpleDateFormat("yyyy-MM-dd", new Locale("pt", "BR")).format(new Date());
+        return format(new Date());
+    }
+
+    public static String format(Date d) {
+        return new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(d);
+    }
+
+    public static Date parse(String iso) {
+        try { return new SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(iso); }
+        catch (Exception e) { return new Date(); }
+    }
+
+    public static String addDays(String iso, int days) {
+        Calendar c = Calendar.getInstance();
+        c.setTime(parse(iso));
+        c.add(Calendar.DAY_OF_MONTH, days);
+        return format(c.getTime());
+    }
+
+    public static String startOfWeek(String iso) {
+        Calendar c = Calendar.getInstance();
+        c.setTime(parse(iso));
+        int dow = c.get(Calendar.DAY_OF_WEEK);
+        int delta = dow == Calendar.SUNDAY ? -6 : Calendar.MONDAY - dow;
+        c.add(Calendar.DAY_OF_MONTH, delta);
+        return format(c.getTime());
     }
 
     private void load() {
@@ -38,30 +69,21 @@ public class Store {
             save();
             return;
         }
-
         try {
             JSONObject root = new JSONObject(raw);
+            tasks.clear(); goals.clear(); routines.clear(); completions.clear();
+
             JSONArray t = root.optJSONArray("tasks");
             JSONArray g = root.optJSONArray("goals");
             JSONArray r = root.optJSONArray("routines");
+            JSONArray c = root.optJSONArray("completions");
 
-            tasks.clear();
-            goals.clear();
-            routines.clear();
-
-            if (t != null) {
-                for (int i = 0; i < t.length(); i++) tasks.add(Task.fromJson(t.getJSONObject(i)));
-            }
-            if (g != null) {
-                for (int i = 0; i < g.length(); i++) goals.add(Goal.fromJson(g.getJSONObject(i)));
-            }
-            if (r != null) {
-                for (int i = 0; i < r.length(); i++) routines.add(Routine.fromJson(r.getJSONObject(i)));
-            }
+            if (t != null) for (int i = 0; i < t.length(); i++) tasks.add(Task.fromJson(t.getJSONObject(i)));
+            if (g != null) for (int i = 0; i < g.length(); i++) goals.add(Goal.fromJson(g.getJSONObject(i)));
+            if (r != null) for (int i = 0; i < r.length(); i++) routines.add(Routine.fromJson(r.getJSONObject(i)));
+            if (c != null) for (int i = 0; i < c.length(); i++) completions.add(Completion.fromJson(c.getJSONObject(i)));
         } catch (Exception e) {
-            tasks.clear();
-            goals.clear();
-            routines.clear();
+            tasks.clear(); goals.clear(); routines.clear(); completions.clear();
             seed();
             save();
         }
@@ -73,125 +95,310 @@ public class Store {
             JSONArray t = new JSONArray();
             JSONArray g = new JSONArray();
             JSONArray r = new JSONArray();
-            for (Task task : tasks) t.put(task.toJson());
-            for (Goal goal : goals) g.put(goal.toJson());
-            for (Routine routine : routines) r.put(routine.toJson());
+            JSONArray c = new JSONArray();
+            for (Task item : tasks) t.put(item.toJson());
+            for (Goal item : goals) g.put(item.toJson());
+            for (Routine item : routines) r.put(item.toJson());
+            for (Completion item : completions) c.put(item.toJson());
             root.put("tasks", t);
             root.put("goals", g);
             root.put("routines", r);
+            root.put("completions", c);
+            root.put("schemaVersion", 2);
             prefs.edit().putString(KEY_DATA, root.toString()).apply();
-        } catch (Exception ignored) {
+        } catch (Exception ignored) { }
+    }
+
+    private void migrateLegacyCompletionHistory() {
+        if (!completions.isEmpty()) return;
+        boolean changed = false;
+        for (Task t : tasks) {
+            if ("done".equals(t.status)) {
+                completions.add(new Completion(t.id, t.title, t.date, t.category, t.minutes));
+                changed = true;
+            }
         }
+        if (changed) save();
+    }
+
+    public void toggleTask(Task task) {
+        if ("done".equals(task.status)) {
+            task.status = "todo";
+            for (int i = completions.size() - 1; i >= 0; i--) {
+                Completion c = completions.get(i);
+                if (c.taskId == task.id && task.date.equals(c.date)) completions.remove(i);
+            }
+        } else {
+            task.status = "done";
+            boolean exists = false;
+            for (Completion c : completions) {
+                if (c.taskId == task.id && task.date.equals(c.date)) { exists = true; break; }
+            }
+            if (!exists) completions.add(new Completion(task.id, task.title, task.date, task.category, task.minutes));
+        }
+        save();
+    }
+
+    public void setTaskStatus(Task task, String status) {
+        if ("done".equals(status) && !"done".equals(task.status)) {
+            task.status = "done";
+            boolean exists = false;
+            for (Completion c : completions) if (c.taskId == task.id && task.date.equals(c.date)) exists = true;
+            if (!exists) completions.add(new Completion(task.id, task.title, task.date, task.category, task.minutes));
+        } else if (!"done".equals(status) && "done".equals(task.status)) {
+            task.status = status;
+            for (int i = completions.size() - 1; i >= 0; i--) {
+                Completion c = completions.get(i);
+                if (c.taskId == task.id && task.date.equals(c.date)) completions.remove(i);
+            }
+        } else task.status = status;
+        save();
+    }
+
+    public void normalizeRecurringTasks() {
+        String today = today();
+        boolean changed = false;
+        for (Task task : tasks) {
+            if ("none".equals(task.recurrence) || !"done".equals(task.status)) continue;
+            if (task.date.compareTo(today) >= 0) continue;
+            String next = task.date;
+            int guard = 0;
+            do {
+                next = nextOccurrence(next, task.recurrence);
+                guard++;
+            } while (next.compareTo(today) < 0 && guard < 370);
+            task.date = next;
+            task.status = "todo";
+            changed = true;
+        }
+        if (changed) save();
+    }
+
+    public static String nextOccurrence(String iso, String recurrence) {
+        Calendar c = Calendar.getInstance();
+        c.setTime(parse(iso));
+        if ("weekly".equals(recurrence)) c.add(Calendar.DAY_OF_MONTH, 7);
+        else if ("monthly".equals(recurrence)) c.add(Calendar.MONTH, 1);
+        else {
+            c.add(Calendar.DAY_OF_MONTH, 1);
+            if ("weekdays".equals(recurrence)) {
+                while (c.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY || c.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY) {
+                    c.add(Calendar.DAY_OF_MONTH, 1);
+                }
+            }
+        }
+        return format(c.getTime());
+    }
+
+    public int completedOn(String iso) {
+        int total = 0;
+        for (Completion c : completions) if (iso.equals(c.date)) total++;
+        return total;
+    }
+
+    public int completedMinutesOn(String iso) {
+        int total = 0;
+        for (Completion c : completions) if (iso.equals(c.date)) total += c.minutes;
+        return total;
+    }
+
+    public int plannedMinutesOn(String iso) {
+        int total = 0;
+        for (Task t : tasks) if (iso.equals(t.date)) total += t.minutes;
+        return total;
+    }
+
+    public int taskCountOn(String iso) {
+        int total = 0;
+        for (Task t : tasks) if (iso.equals(t.date)) total++;
+        return total;
+    }
+
+    public int completionPercentOn(String iso) {
+        int total = 0, done = 0;
+        for (Task t : tasks) {
+            if (!iso.equals(t.date)) continue;
+            total++;
+            if ("done".equals(t.status)) done++;
+        }
+        if (total == 0) return 0;
+        return Math.round(done * 100f / total);
+    }
+
+    public int[] last7CompletionCounts() {
+        int[] values = new int[7];
+        String start = addDays(today(), -6);
+        for (int i = 0; i < 7; i++) values[i] = completedOn(addDays(start, i));
+        return values;
+    }
+
+    public String[] last7Labels() {
+        String[] labels = new String[7];
+        String start = addDays(today(), -6);
+        SimpleDateFormat out = new SimpleDateFormat("EEE", new Locale("pt", "BR"));
+        for (int i = 0; i < 7; i++) {
+            String raw = out.format(parse(addDays(start, i))).replace(".", "");
+            labels[i] = raw.substring(0, Math.min(3, raw.length())).toUpperCase(new Locale("pt", "BR"));
+        }
+        return labels;
+    }
+
+    public Map<String,Integer> categoryMinutesLast7() {
+        LinkedHashMap<String,Integer> map = new LinkedHashMap<>();
+        String cutoff = addDays(today(), -6);
+        for (Completion c : completions) {
+            if (c.date.compareTo(cutoff) < 0 || c.date.compareTo(today()) > 0) continue;
+            map.put(c.category, map.getOrDefault(c.category, 0) + c.minutes);
+        }
+        return map;
+    }
+
+    public int totalCompletedLast7() {
+        int total = 0;
+        String start = addDays(today(), -6);
+        for (int i = 0; i < 7; i++) total += completedOn(addDays(start, i));
+        return total;
+    }
+
+    public int totalCompletedMinutesLast7() {
+        int total = 0;
+        String start = addDays(today(), -6);
+        for (int i = 0; i < 7; i++) total += completedMinutesOn(addDays(start, i));
+        return total;
+    }
+
+    public Routine bestRoutineByStreak() {
+        Routine best = null;
+        int max = -1;
+        for (Routine r : routines) {
+            int s = r.streak(today());
+            if (s > max) { max = s; best = r; }
+        }
+        return best;
     }
 
     private void seed() {
         String d = today();
-        tasks.add(new Task(System.currentTimeMillis() + 1, "Revisar conteúdo de Redes", d, "09:00", "high", 60, "Estudos", "todo"));
-        tasks.add(new Task(System.currentTimeMillis() + 2, "Organizar projeto pessoal", d, "14:30", "medium", 90, "Projeto", "doing"));
-        tasks.add(new Task(System.currentTimeMillis() + 3, "Revisão do dia", d, "21:40", "low", 20, "Pessoal", "done"));
+        tasks.add(new Task(System.currentTimeMillis() + 1, "Revisar conteúdo de Redes", "Revisar anotações e fazer 10 questões.", d, "09:00", "high", 60, "Estudos", "todo", "weekdays", 10));
+        tasks.add(new Task(System.currentTimeMillis() + 2, "Organizar projeto pessoal", "Separar prioridades e quebrar o projeto em pequenas etapas.", d, "14:30", "medium", 90, "Projeto", "doing", "none", 30));
+        tasks.add(new Task(System.currentTimeMillis() + 3, "Revisão do dia", "", d, "21:40", "low", 20, "Pessoal", "done", "daily", -1));
+        completions.add(new Completion(tasks.get(2).id, tasks.get(2).title, d, tasks.get(2).category, tasks.get(2).minutes));
 
-        goals.add(new Goal(System.currentTimeMillis() + 11, "Fortalecer conhecimentos em Redes", 68));
-        goals.add(new Goal(System.currentTimeMillis() + 12, "Concluir projeto pessoal", 42));
-        goals.add(new Goal(System.currentTimeMillis() + 13, "Manter rotina semanal", 76));
+        goals.add(new Goal(System.currentTimeMillis() + 11, "Fortalecer conhecimentos em Redes", 68, addDays(d, 45)));
+        goals.add(new Goal(System.currentTimeMillis() + 12, "Concluir projeto pessoal", 42, addDays(d, 30)));
+        goals.add(new Goal(System.currentTimeMillis() + 13, "Manter rotina semanal", 76, addDays(d, 14)));
 
-        routines.add(new Routine(System.currentTimeMillis() + 21, "Planejar o dia", "Todos os dias · 10 min"));
-        routines.add(new Routine(System.currentTimeMillis() + 22, "Bloco de foco", "Seg a Sex · 60 min"));
-        routines.add(new Routine(System.currentTimeMillis() + 23, "Revisão noturna", "Todos os dias · 20 min"));
+        routines.add(new Routine(System.currentTimeMillis() + 21, "Planejar o dia", "Definir as 3 prioridades", "daily", 10, d));
+        routines.add(new Routine(System.currentTimeMillis() + 22, "Bloco de foco", "Sem notificações e sem multitarefa", "weekdays", 60, d));
+        routines.add(new Routine(System.currentTimeMillis() + 23, "Revisão noturna", "Fechar pendências e preparar amanhã", "daily", 20, d));
     }
 
     public static class Task {
         public long id;
-        public String title;
-        public String date;
-        public String time;
-        public String priority;
-        public int minutes;
-        public String category;
-        public String status;
+        public String title, description, date, time, priority, category, status, recurrence;
+        public int minutes, reminderMinutes;
 
-        public Task(long id, String title, String date, String time, String priority, int minutes, String category, String status) {
-            this.id = id;
-            this.title = title;
-            this.date = date;
-            this.time = time;
-            this.priority = priority;
-            this.minutes = minutes;
-            this.category = category;
-            this.status = status;
+        public Task(long id, String title, String description, String date, String time, String priority, int minutes,
+                    String category, String status, String recurrence, int reminderMinutes) {
+            this.id = id; this.title = title; this.description = description; this.date = date; this.time = time;
+            this.priority = priority; this.minutes = minutes; this.category = category; this.status = status;
+            this.recurrence = recurrence; this.reminderMinutes = reminderMinutes;
         }
 
         JSONObject toJson() throws Exception {
             JSONObject o = new JSONObject();
-            o.put("id", id);
-            o.put("title", title);
-            o.put("date", date);
-            o.put("time", time);
-            o.put("priority", priority);
-            o.put("minutes", minutes);
-            o.put("category", category);
-            o.put("status", status);
+            o.put("id", id); o.put("title", title); o.put("description", description); o.put("date", date); o.put("time", time);
+            o.put("priority", priority); o.put("minutes", minutes); o.put("category", category); o.put("status", status);
+            o.put("recurrence", recurrence); o.put("reminderMinutes", reminderMinutes);
             return o;
         }
 
         static Task fromJson(JSONObject o) {
             return new Task(
-                    o.optLong("id", System.currentTimeMillis()),
-                    o.optString("title", "Tarefa"),
-                    o.optString("date", today()),
-                    o.optString("time", ""),
-                    o.optString("priority", "low"),
-                    o.optInt("minutes", 30),
-                    o.optString("category", "Pessoal"),
-                    o.optString("status", "todo")
+                    o.optLong("id", System.currentTimeMillis()), o.optString("title", "Tarefa"), o.optString("description", ""),
+                    o.optString("date", today()), o.optString("time", ""), o.optString("priority", "low"), o.optInt("minutes", 30),
+                    o.optString("category", "Pessoal"), o.optString("status", "todo"), o.optString("recurrence", "none"),
+                    o.has("reminderMinutes") ? o.optInt("reminderMinutes", -1) : -1
             );
         }
     }
 
     public static class Goal {
-        public long id;
-        public String title;
-        public int progress;
-
-        public Goal(long id, String title, int progress) {
-            this.id = id;
-            this.title = title;
-            this.progress = progress;
-        }
-
-        JSONObject toJson() throws Exception {
-            JSONObject o = new JSONObject();
-            o.put("id", id);
-            o.put("title", title);
-            o.put("progress", progress);
-            return o;
-        }
-
-        static Goal fromJson(JSONObject o) {
-            return new Goal(o.optLong("id", System.currentTimeMillis()), o.optString("title", "Meta"), o.optInt("progress", 0));
-        }
+        public long id; public String title; public int progress; public String targetDate;
+        public Goal(long id, String title, int progress, String targetDate) { this.id = id; this.title = title; this.progress = progress; this.targetDate = targetDate; }
+        JSONObject toJson() throws Exception { JSONObject o = new JSONObject(); o.put("id", id); o.put("title", title); o.put("progress", progress); o.put("targetDate", targetDate); return o; }
+        static Goal fromJson(JSONObject o) { return new Goal(o.optLong("id", System.currentTimeMillis()), o.optString("title", "Meta"), o.optInt("progress", 0), o.optString("targetDate", "")); }
     }
 
     public static class Routine {
-        public long id;
-        public String title;
-        public String detail;
+        public long id; public String title, detail, frequency, startDate; public int minutes; public final List<String> doneDates = new ArrayList<>();
+        public Routine(long id, String title, String detail, String frequency, int minutes, String startDate) {
+            this.id = id; this.title = title; this.detail = detail; this.frequency = frequency; this.minutes = minutes; this.startDate = startDate;
+        }
 
-        public Routine(long id, String title, String detail) {
-            this.id = id;
-            this.title = title;
-            this.detail = detail;
+        public boolean doneOn(String date) { return doneDates.contains(date); }
+        public void toggle(String date) { if (doneDates.contains(date)) doneDates.remove(date); else doneDates.add(date); }
+
+        public boolean dueOn(String date) {
+            Calendar c = Calendar.getInstance(); c.setTime(parse(date));
+            int dow = c.get(Calendar.DAY_OF_WEEK);
+            if ("weekdays".equals(frequency)) return dow != Calendar.SATURDAY && dow != Calendar.SUNDAY;
+            if ("weekly".equals(frequency)) {
+                Calendar start = Calendar.getInstance(); start.setTime(parse(startDate));
+                return start.get(Calendar.DAY_OF_WEEK) == dow;
+            }
+            return true;
+        }
+
+        public int streak(String referenceDate) {
+            String cursor = referenceDate;
+            if (dueOn(cursor) && !doneOn(cursor)) cursor = addDays(cursor, -1);
+            int streak = 0, guard = 0;
+            while (guard < 370) {
+                if (!dueOn(cursor)) { cursor = addDays(cursor, -1); guard++; continue; }
+                if (!doneOn(cursor)) break;
+                streak++;
+                cursor = addDays(cursor, -1);
+                guard++;
+            }
+            return streak;
         }
 
         JSONObject toJson() throws Exception {
             JSONObject o = new JSONObject();
-            o.put("id", id);
-            o.put("title", title);
-            o.put("detail", detail);
-            return o;
+            o.put("id", id); o.put("title", title); o.put("detail", detail); o.put("frequency", frequency); o.put("minutes", minutes); o.put("startDate", startDate);
+            JSONArray a = new JSONArray(); for (String d : doneDates) a.put(d); o.put("doneDates", a); return o;
         }
 
         static Routine fromJson(JSONObject o) {
-            return new Routine(o.optLong("id", System.currentTimeMillis()), o.optString("title", "Rotina"), o.optString("detail", "Recorrente"));
+            String detail = o.optString("detail", "Recorrente");
+            String frequency = o.optString("frequency", inferLegacyFrequency(detail));
+            Routine r = new Routine(o.optLong("id", System.currentTimeMillis()), o.optString("title", "Rotina"), detail,
+                    frequency, o.optInt("minutes", inferLegacyMinutes(detail)), o.optString("startDate", today()));
+            JSONArray a = o.optJSONArray("doneDates");
+            if (a != null) for (int i = 0; i < a.length(); i++) r.doneDates.add(a.optString(i));
+            return r;
         }
+
+        private static String inferLegacyFrequency(String detail) {
+            String l = detail == null ? "" : detail.toLowerCase(Locale.ROOT);
+            if (l.contains("seg a sex")) return "weekdays";
+            if (l.contains("semana")) return "weekly";
+            return "daily";
+        }
+
+        private static int inferLegacyMinutes(String detail) {
+            if (detail == null) return 15;
+            String digits = detail.replaceAll("[^0-9]", " ").trim();
+            if (digits.isEmpty()) return 15;
+            try { return Integer.parseInt(digits.split("\\s+")[0]); } catch (Exception e) { return 15; }
+        }
+    }
+
+    public static class Completion {
+        public long taskId; public String title, date, category; public int minutes;
+        public Completion(long taskId, String title, String date, String category, int minutes) { this.taskId = taskId; this.title = title; this.date = date; this.category = category; this.minutes = minutes; }
+        JSONObject toJson() throws Exception { JSONObject o = new JSONObject(); o.put("taskId", taskId); o.put("title", title); o.put("date", date); o.put("category", category); o.put("minutes", minutes); return o; }
+        static Completion fromJson(JSONObject o) { return new Completion(o.optLong("taskId"), o.optString("title"), o.optString("date"), o.optString("category", "Pessoal"), o.optInt("minutes", 0)); }
     }
 }

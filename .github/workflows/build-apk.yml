@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [ "main", "master" ]
+    tags: [ "v*" ]
 
 jobs:
   build:
@@ -29,12 +30,16 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build debug APK
-        run: gradle --no-daemon assembleDebug
+      - name: Build signed release APK
+        run: gradle --no-daemon assembleRelease
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/release/app-release.apk Ritmo-v2.0.0.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Ritmo-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Ritmo-v2.0.0-APK
+          path: Ritmo-v2.0.0.apk
           if-no-files-found: error
+          retention-days: 30

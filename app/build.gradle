@@ -10,8 +10,29 @@ android {
         applicationId 'com.ritmo.mobile'
         minSdk 24
         targetSdk 35
-        versionCode 1
-        versionName '1.0'
+        versionCode 2
+        versionName '2.0.0'
+    }
+
+    signingConfigs {
+        ritmoRelease {
+            storeFile file('../signing/ritmo.keystore')
+            storePassword 'ritmo2026app'
+            keyAlias 'ritmo'
+            keyPassword 'ritmo2026app'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.ritmoRelease
+        }
+        release {
+            minifyEnabled false
+            shrinkResources false
+            signingConfig signingConfigs.ritmoRelease
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
     }
 
     compileOptions {
