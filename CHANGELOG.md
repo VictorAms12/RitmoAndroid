@@ -1,3 +1,12 @@
+# 2.0.1
+
+- Corrige inicialização instável em alguns aparelhos.
+- Inicialização tolerante a falhas: permissões e reagendamento de lembretes são adiados até a UI abrir.
+- Tratamento mais seguro de barras do sistema no Android 15+.
+- Sanitização de dados migrados da v1.
+- Tela de recuperação em vez de fechar silenciosamente quando ocorre erro durante a montagem da interface.
+- Registro local do último crash para diagnóstico.
+
 # Changelog
 
 ## 2.0.0 — 2026-08-12

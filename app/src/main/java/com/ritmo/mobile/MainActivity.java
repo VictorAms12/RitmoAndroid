@@ -34,6 +34,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.text.SimpleDateFormat;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
@@ -60,26 +62,101 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        installCrashRecorder();
         darkMode = getSharedPreferences("ritmo_ui", MODE_PRIVATE).getBoolean("dark", false);
         setTheme(darkMode ? com.ritmo.mobile.R.style.Theme_Ritmo_Dark : com.ritmo.mobile.R.style.Theme_Ritmo);
         super.onCreate(savedInstanceState);
-        applyPalette();
-        configureSystemBars();
-        store = new Store(this);
-        ReminderScheduler.rescheduleAll(this, store);
-        requestNotificationPermissionIfNeeded();
-        buildShell();
-        showPage("home");
+        try {
+            applyPalette();
+            configureSystemBars();
+            store = new Store(this);
+            buildShell();
+            showPage("home");
+
+            // Permissões e alarmes ficam para depois da primeira tela renderizar.
+            // Isso evita que integrações do sistema impeçam a abertura do app.
+            if (content != null) {
+                content.postDelayed(() -> {
+                    try { requestNotificationPermissionIfNeeded(); } catch (Throwable ignored) { }
+                    try { ReminderScheduler.rescheduleAll(this, store); } catch (Throwable ignored) { }
+                }, 700);
+            }
+        } catch (Throwable e) {
+            recordCrash(e);
+            showRecoveryScreen(e);
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (store != null) {
-            store.normalizeRecurringTasks();
-            ReminderScheduler.rescheduleAll(this, store);
-            if (content != null) showPage(currentPage);
+        try {
+            if (store != null) {
+                store.normalizeRecurringTasks();
+                if (content != null) showPage(currentPage);
+            }
+        } catch (Throwable e) {
+            recordCrash(e);
+            showRecoveryScreen(e);
         }
+    }
+
+    private void installCrashRecorder() {
+        final Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
+            try { recordCrash(throwable); } catch (Throwable ignored) { }
+            if (previous != null) previous.uncaughtException(thread, throwable);
+        });
+    }
+
+    private void recordCrash(Throwable e) {
+        try {
+            StringWriter sw = new StringWriter();
+            e.printStackTrace(new PrintWriter(sw));
+            getSharedPreferences("ritmo_diagnostics", MODE_PRIVATE).edit()
+                    .putString("last_crash", sw.toString())
+                    .putLong("last_crash_time", System.currentTimeMillis())
+                    .apply();
+        } catch (Throwable ignored) { }
+    }
+
+    private void showRecoveryScreen(Throwable e) {
+        try {
+            LinearLayout root = new LinearLayout(this);
+            root.setOrientation(LinearLayout.VERTICAL);
+            root.setPadding(dp(20), dp(28), dp(20), dp(28));
+            root.setBackgroundColor(BG == 0 ? Color.rgb(244,247,245) : BG);
+
+            TextView title = text("O Ritmo encontrou um erro", 22, TEXT == 0 ? Color.rgb(23,35,31) : TEXT, true);
+            root.addView(title);
+            TextView msg = text("A v2.0.1 impediu que o app fechasse sem mostrar o motivo. Você pode tentar abrir novamente ou copiar o diagnóstico abaixo.", 13, MUTED == 0 ? Color.DKGRAY : MUTED, false);
+            msg.setPadding(0, dp(8), 0, dp(14));
+            root.addView(msg);
+
+            String detail = e == null ? "Erro desconhecido" : e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage());
+            TextView error = text(detail, 12, BAD == 0 ? Color.rgb(201,79,79) : BAD, true);
+            error.setTextIsSelectable(true);
+            error.setPadding(dp(12), dp(12), dp(12), dp(12));
+            error.setBackground(rounded(PANEL2 == 0 ? Color.rgb(237,243,240) : PANEL2, 12, false));
+            root.addView(error, marginBottom(dp(14)));
+
+            Button retry = primaryButton("Tentar abrir novamente");
+            retry.setOnClickListener(v -> recreate());
+            root.addView(retry, marginBottom(dp(10)));
+
+            Button reset = new Button(this);
+            reset.setText("Limpar dados locais e reiniciar");
+            reset.setAllCaps(false);
+            reset.setOnClickListener(v -> {
+                getSharedPreferences("ritmo_prefs", MODE_PRIVATE).edit().clear().apply();
+                recreate();
+            });
+            root.addView(reset);
+
+            ScrollView scroll = new ScrollView(this);
+            scroll.addView(root);
+            setContentView(scroll);
+        } catch (Throwable ignored) { }
     }
 
     private void applyPalette() {
@@ -115,20 +192,27 @@ public class MainActivity extends Activity {
     }
 
     private void configureSystemBars() {
-        getWindow().setStatusBarColor(BG);
-        getWindow().setNavigationBarColor(NAV);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            WindowInsetsController c = getWindow().getInsetsController();
-            if (c != null) {
-                int appearance = darkMode ? 0 : WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS;
-                c.setSystemBarsAppearance(appearance, WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS);
+        // Android 15+ força edge-to-edge para apps que miram API 35.
+        // Nessas versões evitamos depender dos setters de cor das barras,
+        // mantendo apenas a aparência dos ícones e tratando os insets no layout.
+        try {
+            if (Build.VERSION.SDK_INT < 35) {
+                getWindow().setStatusBarColor(BG);
+                getWindow().setNavigationBarColor(NAV);
             }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            int flags = getWindow().getDecorView().getSystemUiVisibility();
-            if (darkMode) flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-            else flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-            getWindow().getDecorView().setSystemUiVisibility(flags);
-        }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                WindowInsetsController c = getWindow().getInsetsController();
+                if (c != null) {
+                    int appearance = darkMode ? 0 : WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS;
+                    c.setSystemBarsAppearance(appearance, WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS);
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                int flags = getWindow().getDecorView().getSystemUiVisibility();
+                if (darkMode) flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                else flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                getWindow().getDecorView().setSystemUiVisibility(flags);
+            }
+        } catch (Throwable ignored) { }
     }
 
     private void requestNotificationPermissionIfNeeded() {
@@ -251,13 +335,19 @@ public class MainActivity extends Activity {
     }
 
     private void showPage(String page) {
-        currentPage = page;
-        content.removeAllViews();
-        if ("tasks".equals(page)) content.addView(buildTasksPage());
-        else if ("agenda".equals(page)) content.addView(buildAgendaPage());
-        else if ("organize".equals(page)) content.addView(buildOrganizePage());
-        else content.addView(buildHomePage());
-        highlightNav();
+        try {
+            currentPage = page;
+            if (content == null) return;
+            content.removeAllViews();
+            if ("tasks".equals(page)) content.addView(buildTasksPage());
+            else if ("agenda".equals(page)) content.addView(buildAgendaPage());
+            else if ("organize".equals(page)) content.addView(buildOrganizePage());
+            else content.addView(buildHomePage());
+            highlightNav();
+        } catch (Throwable e) {
+            recordCrash(e);
+            showRecoveryScreen(e);
+        }
     }
 
     private View buildHomePage() {

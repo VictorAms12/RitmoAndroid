@@ -82,10 +82,38 @@ public class Store {
             if (g != null) for (int i = 0; i < g.length(); i++) goals.add(Goal.fromJson(g.getJSONObject(i)));
             if (r != null) for (int i = 0; i < r.length(); i++) routines.add(Routine.fromJson(r.getJSONObject(i)));
             if (c != null) for (int i = 0; i < c.length(); i++) completions.add(Completion.fromJson(c.getJSONObject(i)));
+            sanitizeLoadedData();
         } catch (Exception e) {
             tasks.clear(); goals.clear(); routines.clear(); completions.clear();
             seed();
             save();
+        }
+    }
+
+    private void sanitizeLoadedData() {
+        for (Task t : tasks) {
+            if (t.title == null || t.title.trim().isEmpty()) t.title = "Tarefa";
+            if (t.description == null) t.description = "";
+            if (t.date == null || t.date.length() != 10) t.date = today();
+            if (t.time == null) t.time = "";
+            if (t.priority == null) t.priority = "low";
+            if (t.category == null || t.category.trim().isEmpty()) t.category = "Pessoal";
+            if (t.status == null) t.status = "todo";
+            if (t.recurrence == null) t.recurrence = "none";
+            if (t.minutes < 0) t.minutes = 0;
+        }
+        for (Goal g : goals) {
+            if (g.title == null || g.title.trim().isEmpty()) g.title = "Meta";
+            if (g.targetDate == null) g.targetDate = "";
+            if (g.progress < 0) g.progress = 0;
+            if (g.progress > 100) g.progress = 100;
+        }
+        for (Routine r : routines) {
+            if (r.title == null || r.title.trim().isEmpty()) r.title = "Hábito";
+            if (r.detail == null) r.detail = "";
+            if (r.frequency == null) r.frequency = "daily";
+            if (r.startDate == null || r.startDate.length() != 10) r.startDate = today();
+            if (r.minutes < 0) r.minutes = 0;
         }
     }
 
