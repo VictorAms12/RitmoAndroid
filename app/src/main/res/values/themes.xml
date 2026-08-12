@@ -1,0 +1,10 @@
+<resources>
+    <style name="Theme.Ritmo" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">#0B2B24</item>
+        <item name="android:navigationBarColor">#081B16</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:colorAccent">#1D8A64</item>
+    </style>
+</resources>
