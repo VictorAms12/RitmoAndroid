@@ -176,7 +176,7 @@ class _PlannerTab extends StatelessWidget {
                           Text(
                             DateFormat('EEE', 'pt_BR')
                                 .format(parseIso(date))
-                                .replace('.', '')
+                                .replaceAll('.', '')
                                 .toUpperCase(),
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                   fontWeight: FontWeight.w900,
