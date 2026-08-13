@@ -1,0 +1,104 @@
+name: Apply UI Safe Area and Progress Fix
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    if: ${{ !contains(github.event.head_commit.message, 'fix: status bar safe area and progress contrast') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Apply UI fixes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace(path_name, old, new):
+              path = Path(path_name)
+              text = path.read_text(encoding='utf-8')
+              if new in text:
+                  print(f'already applied: {path_name}')
+                  return False
+              if old not in text:
+                  raise SystemExit(f'expected block not found in {path_name}')
+              path.write_text(text.replace(old, new), encoding='utf-8')
+              print(f'updated: {path_name}')
+              return True
+
+          replace(
+              'lib/screens/shell.dart',
+              "import 'package:flutter/material.dart';",
+              "import 'package:flutter/material.dart';\nimport 'package:flutter/services.dart';",
+          )
+
+          replace(
+              'lib/screens/shell.dart',
+              '''    return Scaffold(\n      extendBody: true,\n      body: PageView(\n        controller: _pages,\n        onPageChanged: (value) => setState(() => _index = value),\n        children: pages,\n      ),''',
+              '''    final dark = Theme.of(context).brightness == Brightness.dark;\n    final overlayStyle = (dark\n            ? SystemUiOverlayStyle.light\n            : SystemUiOverlayStyle.dark)\n        .copyWith(\n      statusBarColor: Colors.transparent,\n      statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,\n      statusBarBrightness: dark ? Brightness.dark : Brightness.light,\n      systemNavigationBarColor:\n          dark ? const Color(0xFF111317) : Colors.white,\n      systemNavigationBarIconBrightness:\n          dark ? Brightness.light : Brightness.dark,\n    );\n\n    return AnnotatedRegion<SystemUiOverlayStyle>(\n      value: overlayStyle,\n      child: Scaffold(\n        extendBody: true,\n        body: SafeArea(\n          top: true,\n          bottom: false,\n          child: PageView(\n            controller: _pages,\n            onPageChanged: (value) => setState(() => _index = value),\n            children: pages,\n          ),\n        ),''',
+          )
+
+          replace(
+              'lib/screens/shell.dart',
+              '''      bottomNavigationBar: _RitmoBottomBar(\n        index: _index,\n        onSelected: _select,\n      ),\n    );\n  }\n}''',
+              '''        bottomNavigationBar: _RitmoBottomBar(\n          index: _index,\n          onSelected: _select,\n        ),\n      ),\n    );\n  }\n}''',
+          )
+
+          replace(
+              'lib/widgets/common.dart',
+              '''  final String? centerLabel;\n  const ProgressRing({\n    super.key,\n    required this.percent,\n    this.size = 96,\n    this.stroke = 9,\n    this.centerLabel,\n  });''',
+              '''  final String? centerLabel;\n  final Color? color;\n  final Color? trackColor;\n  final Color? textColor;\n  const ProgressRing({\n    super.key,\n    required this.percent,\n    this.size = 96,\n    this.stroke = 9,\n    this.centerLabel,\n    this.color,\n    this.trackColor,\n    this.textColor,\n  });''',
+          )
+
+          replace(
+              'lib/widgets/common.dart',
+              '''  Widget build(BuildContext context) {\n    final value = percent.clamp(0, 100);\n    return TweenAnimationBuilder<double>(''',
+              '''  Widget build(BuildContext context) {\n    final value = percent.clamp(0, 100);\n    final scheme = Theme.of(context).colorScheme;\n    final ringColor = color ?? scheme.primary;\n    final ringTrack = trackColor ?? ringColor.withValues(alpha: .14);\n    final foreground = textColor ?? scheme.onSurface;\n    return TweenAnimationBuilder<double>(''',
+          )
+
+          replace(
+              'lib/widgets/common.dart',
+              '''            color: Theme.of(context).colorScheme.primary,\n            track: Theme.of(context).colorScheme.primary.withValues(alpha: .12),\n            stroke: stroke,''',
+              '''            color: ringColor,\n            track: ringTrack,\n            stroke: stroke,''',
+          )
+
+          replace(
+              'lib/widgets/common.dart',
+              '''                  style: Theme.of(context).textTheme.titleLarge?.copyWith(\n                        fontSize: size * .22,\n                      ),''',
+              '''                  style: Theme.of(context).textTheme.titleLarge?.copyWith(\n                        fontSize: size * .22,\n                        color: foreground,\n                        fontWeight: FontWeight.w900,\n                      ),''',
+          )
+
+          replace(
+              'lib/widgets/common.dart',
+              '''                    style: Theme.of(context).textTheme.bodySmall,\n                  ),''',
+              '''                    style: Theme.of(context).textTheme.bodySmall?.copyWith(\n                          color: foreground.withValues(alpha: .82),\n                          fontWeight: FontWeight.w700,\n                        ),\n                  ),''',
+          )
+
+          replace(
+              'lib/screens/today_page.dart',
+              '''          ProgressRing(\n            percent: progress,\n            size: 104,\n            stroke: 10,\n            centerLabel: 'do dia',\n          ),''',
+              '''          ProgressRing(\n            percent: progress,\n            size: 104,\n            stroke: 10,\n            centerLabel: 'do dia',\n            color: Colors.white,\n            trackColor: Colors.white.withValues(alpha: .20),\n            textColor: Colors.white,\n          ),''',
+          )
+          PY
+
+      - name: Commit UI fixes
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No UI changes were needed."
+            exit 0
+          fi
+          git config user.name "Ritmo Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add lib/screens/shell.dart lib/widgets/common.dart lib/screens/today_page.dart
+          git commit -m "fix: status bar safe area and progress contrast"
+          git push origin main
