@@ -520,7 +520,7 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
       startDate: old?.startDate ?? widget.state.today,
       time: _time,
       category: _category,
-      accent: old?.accent ?? 'green',
+      accent: old?.accent ?? 'indigo',
       reminderMinutes: _reminder,
       daysMask: _frequency == 'custom' ? _buildDaysMask() : 0,
       doneDates: [...(old?.doneDates ?? const <String>[])],

@@ -8,8 +8,8 @@ class RitmoColors {
   static const primaryDark = Color(0xFF8B95FF);
   static const violet = Color(0xFFA78BFA);
 
-  static const success = Color(0xFF35C48D);
-  static const mint = Color(0xFF35C48D);
+  static const success = Color(0xFF63A6F5);
+  static const mint = Color(0xFF63A6F5);
   static const amber = Color(0xFFF2B84B);
   static const danger = Color(0xFFEF6B73);
   static const info = Color(0xFF63A6F5);

@@ -112,7 +112,7 @@ class ProgressPage extends StatelessWidget {
                       Heatmap30(values: state.last30Scores()),
                       const SizedBox(height: 12),
                       Text(
-                        'Quanto mais intenso o verde, maior foi a combinação de tarefas e hábitos concluídos naquele dia.',
+                        'Quanto mais intensa a cor, maior foi a combinação de tarefas e hábitos concluídos naquele dia.',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],

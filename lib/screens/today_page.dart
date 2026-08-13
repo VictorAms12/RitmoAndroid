@@ -410,8 +410,8 @@ class _HeroSummary extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: Theme.of(context).brightness == Brightness.dark
-              ? const [Color(0xFF0D3025), Color(0xFF124835)]
-              : const [Color(0xFF166B52), Color(0xFF238362)],
+              ? const [Color(0xFF181A24), Color(0xFF303764)]
+              : const [Color(0xFF5965E8), Color(0xFF7768E8)],
         ),
         borderRadius: BorderRadius.circular(26),
         boxShadow: [

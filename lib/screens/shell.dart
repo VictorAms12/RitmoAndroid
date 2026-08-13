@@ -147,7 +147,7 @@ class _RitmoBottomBar extends StatelessWidget {
     return BottomAppBar(
       height: 78,
       elevation: 18,
-      color: dark ? const Color(0xFF0A211A) : Colors.white,
+      color: dark ? const Color(0xFF111317) : Colors.white,
       shadowColor: Colors.black.withValues(alpha: .20),
       shape: const CircularNotchedRectangle(),
       notchMargin: 9,
