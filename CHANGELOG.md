@@ -1,35 +1,45 @@
 # Changelog
 
-## 2.4.0 — 2026-08-12
+## 3.0.0
 
-### Design
-- Retorno da identidade escura em verde profundo.
-- Nova paleta de superfícies, bordas, cards, hero, navegação e widget.
-- Tema escuro vira padrão apenas para novas instalações; preferências existentes são preservadas.
-- Menu `+` substituído por um painel de criação rápida mais visual e orientado à thumb-zone.
+### Arquitetura
+- Reescrita da interface em Flutter.
+- Mantido `com.ritmo.mobile`.
+- Mantida a assinatura Android da série 2.x.
+- Camada nativa Android preservada apenas onde agrega valor: lembretes, widget, migração de dados e timer foreground.
 
-### Execução diária
-- Novo fechamento do dia com humor, nota e resumo real de execução.
-- Novo fluxo “Planejar amanhã”.
-- Recuperação opcional de tarefas flexíveis não concluídas.
-- Registro persistente de revisões diárias.
+### UI/UX
+- Material 3.
+- Novo design system verde profundo.
+- Nova barra inferior com FAB central.
+- Novo menu `+` em bottom sheet.
+- Animações de conclusão, progresso e navegação.
+- Swipe para concluir/excluir.
+- Empty states, skeleton loading e error recovery.
+- Layouts adaptativos e melhor thumb-zone.
+
+### Rotina
+- Dashboard Hoje redesenhado.
+- Hábitos integrados ao progresso do dia.
+- Streak destacado.
+- Fechamento do dia.
+- Filtros rápidos.
+
+### Planejamento
+- Calendário mensal.
+- Kanban drag-and-drop.
+- Planejador inteligente em Dart.
+- Preview e desfazer planejamento.
+- Tarefas fixas e flexíveis preservadas.
 
 ### Foco
-- Novo foreground service para manter cronômetro ativo em background.
-- Notificação persistente com contagem regressiva.
-- Notificação de conclusão quando o timer termina fora do app.
-- Histórico recente de sessões dentro das estatísticas.
+- Tela de foco reconstruída.
+- 25 min, 50 min e duração da tarefa.
+- Pausar, retomar e registrar.
+- Foreground service Android mantido.
+- Histórico e gráficos de foco.
 
-### Eficiência
-- Replanejamento automático limitado a uma execução diária.
-- Reagendamento global de lembretes reduzido para uma vez por dia/versão.
-- Operações individuais continuam reagendando somente o item alterado.
-
-### Resiliência
-- Diagnóstico de crash agora pode ser copiado.
-- Reset local exige confirmação explícita.
-- Schema local atualizado para 6.
-
-### Versão
-- `versionCode 7`
-- `versionName 2.4.0`
+### Dados
+- Leitura direta dos dados da 2.4.
+- schemaVersion 7.
+- Backup Flutter adicional via shared_preferences.

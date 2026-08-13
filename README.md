@@ -1,89 +1,74 @@
-# Ritmo 2.4.0 — Android nativo
+# Ritmo 3.0.0 — Flutter Edition
 
-Ritmo é um app offline-first para rotina, tarefas, hábitos, agenda, foco e planejamento pessoal. A 2.4 preserva a base da 2.3, mas melhora execução diária, confiabilidade e identidade visual.
+Ritmo foi reconstruído em Flutter para melhorar fluidez, animações, consistência visual e manutenção sem abandonar os recursos existentes da versão Android nativa.
 
-## Destaques da 2.4.0
+## Destaques
 
-### Tema verde escuro renovado
-- Tema escuro padrão para novas instalações.
-- Fundo profundo `#071A14`, sem preto absoluto.
-- Cards `#0D261E` e superfícies secundárias `#123328`.
-- Verde menta como ação primária e sucesso.
-- Tema claro continua disponível com tons neutros e acento verde.
-- Barra de status, navegação, hero e widget atualizados para a mesma identidade.
+- Material 3 com identidade verde profunda
+- Light / Dark / System
+- Dashboard diário com progresso combinado
+- Tarefas, subtarefas, recorrência, lembretes, prioridade automática e projetos
+- Hábitos com frequência, dias customizados, lembrete e streak
+- Calendário mensal
+- Swipe para concluir/excluir
+- Kanban com drag-and-drop
+- Planejador inteligente de tarefas flexíveis
+- Metas e projetos
+- Modo Foco com cronômetro em background no Android
+- Estatísticas semanais, heatmap de 30 dias e histórico de foco
+- Fechamento do dia
+- Empty/loading/error states
+- Feedback tátil opcional
+- Redução de movimento
+- Widget Android preservado
+- Migração direta dos dados do Ritmo 2.4 no Android
 
-### Menu + redesenhado
-- Novo painel inferior de criação rápida.
-- Nova tarefa em destaque.
-- Atalhos visuais para compromisso, hábito, projeto e meta.
-- Atalhos diretos para sessão de foco e planejamento de amanhã.
-- Microanimação de entrada e feedback de pressão.
+## Compatibilidade com a 2.4
 
-### Foco em background
-- Sessões em andamento agora usam `FocusTimerService` como foreground service.
-- Cronômetro continua ao bloquear a tela, trocar de app ou sair da Activity.
-- Notificação persistente mostra contagem regressiva.
-- Ao terminar em background, a notificação muda para “Sessão concluída”.
-- Ao voltar ao Ritmo, a sessão é registrada normalmente no histórico.
+O applicationId continua:
 
-### Fechamento do dia
-- Novo card “Fechamento do dia” na Home.
-- Nota de 1 a 5 sobre como foi o dia.
-- Campo opcional de reflexão rápida.
-- Resumo de tarefas concluídas, pendentes e tempo de foco.
-- Opção de levar apenas tarefas flexíveis pendentes para amanhã.
-- Compromissos fixos e recorrências nunca são movidos.
-- Histórico de revisões diárias salvo localmente.
+`com.ritmo.mobile`
 
-### Planejar amanhã
-- Novo atalho no menu `+` e em Ajustes.
-- Mostra o que já está previsto para amanhã.
-- Pode recuperar pendências flexíveis de hoje.
-- Permite criar uma tarefa diretamente no dia seguinte.
-- Abre a Agenda já posicionada em amanhã.
+A mesma chave `signing/ritmo.keystore` também foi preservada. Por isso, o APK 3.0.0 foi preparado para instalar como atualização da 2.4.0.
 
-### Histórico de foco
-- Estatísticas agora exibem as sessões recentes.
-- Cada sessão mostra tarefa, data, horário, modo, tempo real e percentual do alvo.
+Os dados continuam no SharedPreferences nativo:
 
-### Eficiência e estabilidade
-- Replanejamento automático passa a rodar no máximo uma vez por dia, evitando reorganizações repetidas ao abrir o app.
-- Reagendamento geral de alarmes também é limitado a uma vez por dia/versão; alterações individuais continuam atualizando seus próprios alarmes imediatamente.
-- Tela de recuperação ganhou botão para copiar diagnóstico técnico.
-- Limpeza de dados em modo de recuperação agora exige confirmação.
-- Banco local atualizado para `schemaVersion 6` com migração compatível.
+- arquivo: `ritmo_prefs`
+- chave: `ritmo_data`
 
-## Recursos preservados
-- Tarefas, subtarefas, prioridades, recorrência, lembretes e projetos.
-- Calendário mensal e semanal.
-- Kanban com drag-and-drop.
-- Hábitos com streak, frequência e lembretes.
-- Metas e projetos.
-- Planejador Inteligente.
-- Estatísticas semanais/mensais.
-- Heatmap de consistência.
-- Widget Android.
-- Tema Claro / Escuro / Sistema.
-- Modo Foco 25/50/duração da tarefa.
+O Flutter lê e salva no mesmo local através de um MethodChannel. Isso evita perder tarefas, projetos, metas, hábitos, histórico e revisões do dia na migração.
 
-## Versão Android
+## Build no GitHub Actions
 
-```gradle
-versionCode 7
-versionName '2.4.0'
+Ao fazer push na `main`, o workflow `.github/workflows/build-apk.yml`:
+
+1. instala Java 17;
+2. prepara Android SDK API 35;
+3. instala Flutter 3.44.4;
+4. executa `flutter pub get`;
+5. executa `flutter analyze`;
+6. gera APK release assinado;
+7. publica `Ritmo-v3.0.0-APK`.
+
+## Atualização no Windows
+
+Use esta versão como uma substituição estrutural do repositório, não apenas da pasta `app/`, porque o projeto agora é Flutter.
+
+Faça backup/commit da 2.4 antes da troca.
+
+Depois de copiar o conteúdo da v3 para o repositório:
+
+```bash
+git status
+git add -A
+git commit -m "feat: Ritmo 3.0.0 migracao para Flutter"
+git push origin main
 ```
 
-## Build automática
+Se o Actions ficar verde, baixe o artifact `Ritmo-v3.0.0-APK`.
 
-O workflow em `.github/workflows/build-apk.yml` gera o APK assinado no GitHub Actions.
+## Versão
 
-Artifact esperado: `Ritmo-v2.4.0-APK`  
-Arquivo esperado: `Ritmo-v2.4.0.apk`
-
-## Dados
-
-Os dados continuam no armazenamento local do app. A atualização da 2.3 para a 2.4 mantém tarefas, projetos, metas, hábitos, histórico de conclusão e sessões de foco.
-
-## Observação de build
-
-O projeto foi revisado estruturalmente (Java/XML), mas a compilação Android final deve ser validada pelo GitHub Actions ou pelo Android Studio, pois este ambiente de geração não possui Android SDK instalado.
+- versionName: 3.0.0
+- versionCode: 8
+- schemaVersion: 7

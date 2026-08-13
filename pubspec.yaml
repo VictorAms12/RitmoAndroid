@@ -1,0 +1,21 @@
+name: ritmo
+description: Ritmo - gestão de rotina, hábitos, foco e planejamento.
+publish_to: "none"
+version: 3.0.0+8
+
+environment:
+  sdk: ">=3.10.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  shared_preferences: ^2.5.5
+  intl: ^0.20.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

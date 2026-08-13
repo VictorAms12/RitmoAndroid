@@ -1,4 +1,4 @@
-name: Build Ritmo APK
+name: Build Ritmo Flutter APK
 
 on:
   workflow_dispatch:
@@ -9,6 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,29 +18,59 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android packages
+      - name: Install Android API 35
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Setup Gradle 8.9
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.4"
+          channel: "stable"
+          cache: true
+
+      - name: Flutter diagnostics
+        run: flutter doctor -v
+
+      - name: Fetch packages
+        run: flutter pub get
+
+      - name: Configure Android local.properties
+        shell: bash
+        run: |
+          cat > android/local.properties <<EOF
+          flutter.sdk=$FLUTTER_ROOT
+          flutter.versionCode=8
+          flutter.versionName=3.0.0
+          EOF
+
+      - name: Setup Gradle 8.11.1
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: "8.11.1"
+
+      - name: Analyze Flutter source
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Build signed release APK
+        working-directory: android
         run: gradle --no-daemon assembleRelease
 
-      - name: Rename APK
-        run: cp app/build/outputs/apk/release/app-release.apk Ritmo-v2.4.0.apk
+      - name: Collect APK
+        shell: bash
+        run: |
+          APK="$(find build -type f -name 'app-release.apk' | head -n 1)"
+          test -n "$APK"
+          cp "$APK" Ritmo-v3.0.0.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Ritmo-v2.4.0-APK
-          path: Ritmo-v2.4.0.apk
+          name: Ritmo-v3.0.0-APK
+          path: Ritmo-v3.0.0.apk
           if-no-files-found: error
           retention-days: 30
