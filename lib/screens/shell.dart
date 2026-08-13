@@ -21,6 +21,7 @@ class RitmoShell extends StatefulWidget {
 
 class _RitmoShellState extends State<RitmoShell> {
   int _index = 0;
+  bool _tabTransitioning = false;
   late final PageController _pages = PageController();
 
   @override
@@ -29,17 +30,41 @@ class _RitmoShellState extends State<RitmoShell> {
     super.dispose();
   }
 
-  void _select(int value) {
-    if (value == _index) return;
-    setState(() => _index = value);
+  Future<void> _select(int value) async {
+    if (value == _index || _tabTransitioning || !_pages.hasClients) return;
+
+    final current = (_pages.page ?? _index.toDouble()).round();
+
     if (widget.state.reduceMotion) {
+      setState(() => _index = value);
       _pages.jumpToPage(value);
-    } else {
-      _pages.animateToPage(
+      return;
+    }
+
+    setState(() {
+      _index = value;
+      _tabTransitioning = true;
+    });
+
+    try {
+      final distance = (value - current).abs();
+
+      if (distance > 1) {
+        final bridgePage = value > current ? value - 1 : value + 1;
+        _pages.jumpToPage(bridgePage);
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted || !_pages.hasClients) return;
+      }
+
+      await _pages.animateToPage(
         value,
-        duration: const Duration(milliseconds: 330),
+        duration: const Duration(milliseconds: 240),
         curve: Curves.easeOutCubic,
       );
+    } finally {
+      if (mounted) {
+        setState(() => _tabTransitioning = false);
+      }
     }
   }
 
@@ -135,7 +160,10 @@ class _RitmoShellState extends State<RitmoShell> {
           bottom: false,
           child: PageView(
             controller: _pages,
-            onPageChanged: (value) => setState(() => _index = value),
+            onPageChanged: (value) {
+              if (_tabTransitioning || value == _index) return;
+              setState(() => _index = value);
+            },
             children: pages,
           ),
         ),
