@@ -7,27 +7,20 @@ plugins {
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
-    localPropertiesFile.withReader("UTF-8") { reader ->
-        localProperties.load(reader)
-    }
+    localPropertiesFile.withReader("UTF-8") { reader -> localProperties.load(reader) }
 }
 
-def flutterVersionCode = localProperties.getProperty("flutter.versionCode") ?: "8"
-def flutterVersionName = localProperties.getProperty("flutter.versionName") ?: "3.0.0"
+def flutterVersionCode = localProperties.getProperty("flutter.versionCode") ?: "9"
+def flutterVersionName = localProperties.getProperty("flutter.versionName") ?: "3.0.1"
 
 android {
     namespace "com.ritmo.mobile"
     compileSdk 36
-
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
+    kotlinOptions { jvmTarget = "17" }
     defaultConfig {
         applicationId "com.ritmo.mobile"
         minSdk 24
@@ -35,7 +28,6 @@ android {
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }
-
     signingConfigs {
         ritmoRelease {
             storeFile file("../../signing/ritmo.keystore")
@@ -44,11 +36,8 @@ android {
             keyPassword "ritmo2026app"
         }
     }
-
     buildTypes {
-        debug {
-            signingConfig signingConfigs.ritmoRelease
-        }
+        debug { signingConfig signingConfigs.ritmoRelease }
         release {
             signingConfig signingConfigs.ritmoRelease
             minifyEnabled false
@@ -57,6 +46,4 @@ android {
     }
 }
 
-flutter {
-    source "../.."
-}
+flutter { source "../.." }

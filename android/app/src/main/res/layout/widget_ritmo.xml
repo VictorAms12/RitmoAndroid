@@ -7,41 +7,8 @@
     android:padding="16dp"
     android:gravity="center_vertical"
     android:background="@drawable/widget_bg">
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Ritmo · Hoje"
-        android:textColor="#D7F5E8"
-        android:textStyle="bold"
-        android:textSize="12sp" />
-
-    <TextView
-        android:id="@+id/widgetPercent"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="3dp"
-        android:text="0%"
-        android:textColor="#FFFFFF"
-        android:textStyle="bold"
-        android:textSize="30sp" />
-
-    <TextView
-        android:id="@+id/widgetPending"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:text="0 pendentes"
-        android:textColor="#74F2BE"
-        android:textStyle="bold"
-        android:textSize="13sp" />
-
-    <TextView
-        android:id="@+id/widgetSummary"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:text="0 de 0 tarefas concluídas"
-        android:textColor="#C8EBDD"
-        android:textSize="11sp" />
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Ritmo · Hoje" android:textColor="#C9CDD6" android:textStyle="bold" android:textSize="12sp" />
+    <TextView android:id="@+id/widgetPercent" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="3dp" android:text="0%" android:textColor="#F7F8FB" android:textStyle="bold" android:textSize="30sp" />
+    <TextView android:id="@+id/widgetPending" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="0 pendentes" android:textColor="#9EA8FF" android:textStyle="bold" android:textSize="13sp" />
+    <TextView android:id="@+id/widgetSummary" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="0 de 0 tarefas concluídas" android:textColor="#AEB3BE" android:textSize="11sp" />
 </LinearLayout>
