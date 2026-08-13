@@ -59,16 +59,6 @@ jobs:
                   ('flutter.versionName") ?: "3.0.1"', 'flutter.versionName") ?: "3.0.2"'),
                   ('flutter.versionName") ?: "3.0.0"', 'flutter.versionName") ?: "3.0.2"'),
               ],
-              '.github/workflows/build-apk.yml': [
-                  ('flutter.versionCode=9', 'flutter.versionCode=10'),
-                  ('flutter.versionCode=8', 'flutter.versionCode=10'),
-                  ('flutter.versionName=3.0.1', 'flutter.versionName=3.0.2'),
-                  ('flutter.versionName=3.0.0', 'flutter.versionName=3.0.2'),
-                  ('Ritmo-v3.0.1.apk', 'Ritmo-v3.0.2.apk'),
-                  ('Ritmo-v3.0.0.apk', 'Ritmo-v3.0.2.apk'),
-                  ('Ritmo-v3.0.1-APK', 'Ritmo-v3.0.2-APK'),
-                  ('Ritmo-v3.0.0-APK', 'Ritmo-v3.0.2-APK'),
-              ],
           }
 
           changed = []
