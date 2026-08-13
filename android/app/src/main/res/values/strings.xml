@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Ritmo</string>
+    <string name="widget_description">Resumo de tarefas, hábitos e foco do Ritmo</string>
 </resources>

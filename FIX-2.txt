@@ -1,0 +1,18 @@
+Ritmo 3.0.0 - Build Fix 2
+
+Corrige a falha do GitHub Actions na etapa Build signed release APK:
+
+1. launch_background.xml:
+   - remove uso inválido de cor literal em android:drawable
+   - usa shape + solid color
+
+2. strings.xml:
+   - adiciona @string/widget_description usado pelo widget Android
+
+3. android/app/build.gradle:
+   - compileSdk 36 para compatibilidade com shared_preferences_android 2.4.27
+
+4. .github/workflows/build-apk.yml:
+   - instala Android API 36 e Build Tools 36.0.0
+
+Copie o conteúdo deste pacote sobre a raiz do repositório e substitua os arquivos existentes.
