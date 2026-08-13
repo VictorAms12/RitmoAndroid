@@ -36,17 +36,27 @@ class ProgressRing extends StatelessWidget {
   final double size;
   final double stroke;
   final String? centerLabel;
+  final Color? color;
+  final Color? trackColor;
+  final Color? textColor;
   const ProgressRing({
     super.key,
     required this.percent,
     this.size = 96,
     this.stroke = 9,
     this.centerLabel,
+    this.color,
+    this.trackColor,
+    this.textColor,
   });
 
   @override
   Widget build(BuildContext context) {
     final value = percent.clamp(0, 100);
+    final scheme = Theme.of(context).colorScheme;
+    final ringColor = color ?? scheme.primary;
+    final ringTrack = trackColor ?? ringColor.withValues(alpha: .14);
+    final foreground = textColor ?? scheme.onSurface;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: value / 100),
       duration: const Duration(milliseconds: 650),
@@ -57,8 +67,8 @@ class ProgressRing extends StatelessWidget {
         child: CustomPaint(
           painter: _RingPainter(
             progress: progress,
-            color: Theme.of(context).colorScheme.primary,
-            track: Theme.of(context).colorScheme.primary.withValues(alpha: .12),
+            color: ringColor,
+            track: ringTrack,
             stroke: stroke,
           ),
           child: Center(
@@ -69,12 +79,17 @@ class ProgressRing extends StatelessWidget {
                   '${(progress * 100).round()}%',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontSize: size * .22,
+                        color: foreground,
+                        fontWeight: FontWeight.w900,
                       ),
                 ),
                 if (centerLabel != null)
                   Text(
                     centerLabel!,
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: foreground.withValues(alpha: .82),
+                          fontWeight: FontWeight.w700,
+                        ),
                   ),
               ],
             ),

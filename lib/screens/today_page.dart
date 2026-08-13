@@ -429,6 +429,9 @@ class _HeroSummary extends StatelessWidget {
             size: 104,
             stroke: 10,
             centerLabel: 'do dia',
+            color: Colors.white,
+            trackColor: Colors.white.withValues(alpha: .20),
+            textColor: Colors.white,
           ),
           const SizedBox(width: 18),
           Expanded(

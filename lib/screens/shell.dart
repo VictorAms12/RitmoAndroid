@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
 import '../models/models.dart';
@@ -111,13 +112,33 @@ class _RitmoShellState extends State<RitmoShell> {
       ),
     ];
 
-    return Scaffold(
-      extendBody: true,
-      body: PageView(
-        controller: _pages,
-        onPageChanged: (value) => setState(() => _index = value),
-        children: pages,
-      ),
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final overlayStyle = (dark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark)
+        .copyWith(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: dark ? Brightness.dark : Brightness.light,
+      systemNavigationBarColor:
+          dark ? const Color(0xFF111317) : Colors.white,
+      systemNavigationBarIconBrightness:
+          dark ? Brightness.light : Brightness.dark,
+    );
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      child: Scaffold(
+        extendBody: true,
+        body: SafeArea(
+          top: true,
+          bottom: false,
+          child: PageView(
+            controller: _pages,
+            onPageChanged: (value) => setState(() => _index = value),
+            children: pages,
+          ),
+        ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: Semantics(
         button: true,
@@ -128,9 +149,10 @@ class _RitmoShellState extends State<RitmoShell> {
           child: const Icon(Icons.add_rounded, size: 30),
         ),
       ),
-      bottomNavigationBar: _RitmoBottomBar(
-        index: _index,
-        onSelected: _select,
+        bottomNavigationBar: _RitmoBottomBar(
+          index: _index,
+          onSelected: _select,
+        ),
       ),
     );
   }
