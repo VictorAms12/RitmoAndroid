@@ -90,6 +90,9 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
   late String _recurrence;
   late int _reminder;
   late bool _flexible;
+  late bool _inbox;
+  late String _energy;
+  late String _preferredPeriod;
   late int _projectId;
   final List<TextEditingController> _subtasks = [];
 
@@ -100,14 +103,17 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     _title = TextEditingController(text: t?.title ?? '');
     _description = TextEditingController(text: t?.description ?? '');
     _minutes = TextEditingController(text: '${t?.minutes ?? (widget.commitment ? 60 : 30)}');
-    _date = t?.date ?? widget.initialDate ?? widget.state.today;
-    _deadline = t?.deadline ?? _date;
+    _date = t?.inbox == true ? widget.state.today : (t?.date ?? widget.initialDate ?? widget.state.today);
+    _deadline = t?.inbox == true ? widget.state.today : (t?.deadline ?? _date);
     _time = t?.time ?? '';
     _priority = t?.priority ?? (widget.commitment ? 'medium' : 'auto');
     _category = t?.category ?? (widget.commitment ? 'Pessoal' : 'Pessoal');
     _recurrence = t?.recurrence ?? 'none';
     _reminder = t?.reminderMinutes ?? -1;
     _flexible = t?.flexible ?? !widget.commitment;
+    _inbox = t?.inbox ?? false;
+    _energy = t?.energy ?? 'medium';
+    _preferredPeriod = t?.preferredPeriod ?? 'any';
     _projectId = t?.projectId ?? 0;
     for (final s in t?.subtasks ?? <Subtask>[]) {
       _subtasks.add(TextEditingController(text: s.title));
@@ -134,16 +140,19 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
       projectId: _projectId,
       title: title,
       description: _description.text.trim(),
-      date: _date,
-      time: _time,
-      deadline: _deadline.compareTo(_date) < 0 ? _date : _deadline,
+      date: _inbox ? '2999-12-31' : _date,
+      time: _inbox ? '' : _time,
+      deadline: _inbox ? '2999-12-31' : (_deadline.compareTo(_date) < 0 ? _date : _deadline),
       priority: _priority,
       minutes: int.tryParse(_minutes.text.trim()) ?? 30,
       category: _category,
       status: original?.status ?? 'todo',
       recurrence: _recurrence,
-      reminderMinutes: _reminder,
-      flexible: _flexible && _recurrence == 'none',
+      reminderMinutes: _inbox ? -1 : _reminder,
+      flexible: _inbox ? true : (_flexible && _recurrence == 'none'),
+      inbox: _inbox,
+      energy: _energy,
+      preferredPeriod: _preferredPeriod,
       subtasks: List.generate(_subtasks.length, (index) {
         final old = original != null && index < original.subtasks.length
             ? original.subtasks[index]
@@ -321,6 +330,46 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
               onChanged: (v) => setState(() => _priority = v ?? _priority),
             ),
             const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _energy,
+                    decoration: const InputDecoration(labelText: 'Energia', prefixIcon: Icon(Icons.bolt_outlined)),
+                    items: const [
+                      DropdownMenuItem(value: 'low', child: Text('Baixa')),
+                      DropdownMenuItem(value: 'medium', child: Text('Média')),
+                      DropdownMenuItem(value: 'high', child: Text('Alta')),
+                    ],
+                    onChanged: (v) => setState(() => _energy = v ?? _energy),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _preferredPeriod,
+                    decoration: const InputDecoration(labelText: 'Melhor período', prefixIcon: Icon(Icons.schedule_outlined)),
+                    items: const [
+                      DropdownMenuItem(value: 'any', child: Text('Qualquer')),
+                      DropdownMenuItem(value: 'morning', child: Text('Manhã')),
+                      DropdownMenuItem(value: 'afternoon', child: Text('Tarde')),
+                      DropdownMenuItem(value: 'evening', child: Text('Noite')),
+                    ],
+                    onChanged: (v) => setState(() => _preferredPeriod = v ?? _preferredPeriod),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SwitchListTile.adaptive(
+              value: _inbox,
+              onChanged: widget.commitment ? null : (v) => setState(() => _inbox = v),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+              title: const Text('Caixa de entrada'),
+              subtitle: const Text('Salva sem data e deixa para você organizar depois.'),
+              secondary: const Icon(Icons.inbox_outlined),
+            ),
+            const SizedBox(height: 6),
             DropdownButtonFormField<String>(
               initialValue: _recurrence,
               decoration: const InputDecoration(

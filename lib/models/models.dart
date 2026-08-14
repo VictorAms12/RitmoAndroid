@@ -42,6 +42,9 @@ class TaskItem {
   String recurrence;
   int reminderMinutes;
   bool flexible;
+  bool inbox;
+  String energy;
+  String preferredPeriod;
   List<Subtask> subtasks;
 
   TaskItem({
@@ -59,6 +62,9 @@ class TaskItem {
     this.recurrence = 'none',
     this.reminderMinutes = -1,
     this.flexible = false,
+    this.inbox = false,
+    this.energy = 'medium',
+    this.preferredPeriod = 'any',
     List<Subtask>? subtasks,
   })  : deadline = deadline ?? date,
         subtasks = subtasks ?? [];
@@ -89,6 +95,9 @@ class TaskItem {
       recurrence: (j['recurrence'] ?? 'none').toString(),
       reminderMinutes: (j['reminderMinutes'] as num?)?.toInt() ?? -1,
       flexible: j['flexible'] == true,
+      inbox: j['inbox'] == true,
+      energy: (j['energy'] ?? 'medium').toString(),
+      preferredPeriod: (j['preferredPeriod'] ?? 'any').toString(),
       subtasks: ((j['subtasks'] as List?) ?? [])
           .whereType<Map>()
           .map((e) => Subtask.fromJson(Map<String, dynamic>.from(e)))
@@ -111,6 +120,9 @@ class TaskItem {
         'recurrence': recurrence,
         'reminderMinutes': reminderMinutes,
         'flexible': flexible,
+        'inbox': inbox,
+        'energy': energy,
+        'preferredPeriod': preferredPeriod,
         'subtasks': subtasks.map((e) => e.toJson()).toList(),
       };
 }
@@ -337,6 +349,6 @@ class RitmoData {
         'projects': projects.map((e) => e.toJson()).toList(),
         'focusSessions': focusSessions.map((e) => e.toJson()).toList(),
         'dayReviews': dayReviews.map((e) => e.toJson()).toList(),
-        'schemaVersion': 7,
+        'schemaVersion': 8,
       };
 }

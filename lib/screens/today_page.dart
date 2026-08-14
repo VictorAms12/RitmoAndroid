@@ -7,6 +7,7 @@ import '../models/models.dart';
 import '../sheets/editors.dart';
 import '../widgets/common.dart';
 import 'focus_page.dart';
+import 'command_center_page.dart';
 
 class TodayPage extends StatefulWidget {
   final AppState state;
@@ -202,19 +203,32 @@ class _TodayPageState extends State<TodayPage> {
                         ],
                       ),
                     ),
-                    IconButton.filledTonal(
-                      tooltip: 'Alternar tema',
-                      onPressed: () {
-                        final next = state.themeMode == RitmoThemeMode.dark
-                            ? RitmoThemeMode.light
-                            : RitmoThemeMode.dark;
-                        state.setTheme(next);
-                      },
-                      icon: Icon(
-                        Theme.of(context).brightness == Brightness.dark
-                            ? Icons.light_mode_rounded
-                            : Icons.dark_mode_rounded,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton.filledTonal(
+                          tooltip: 'Central',
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => CommandCenterPage(state: state)),
+                          ),
+                          icon: const Icon(Icons.dashboard_customize_outlined),
+                        ),
+                        const SizedBox(width: 7),
+                        IconButton.filledTonal(
+                          tooltip: 'Alternar tema',
+                          onPressed: () {
+                            final next = state.themeMode == RitmoThemeMode.dark
+                                ? RitmoThemeMode.light
+                                : RitmoThemeMode.dark;
+                            state.setTheme(next);
+                          },
+                          icon: Icon(
+                            Theme.of(context).brightness == Brightness.dark
+                                ? Icons.light_mode_rounded
+                                : Icons.dark_mode_rounded,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
