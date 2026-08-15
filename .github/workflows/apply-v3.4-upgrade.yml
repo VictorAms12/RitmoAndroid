@@ -49,5 +49,6 @@ jobs:
           git config user.name "VictorAms12"
           git config user.email "victoralexandresoaresmaranhao@gmail.com"
           git add -A
+          git reset -- .github/workflows/build-apk.yml .github/workflows/build-windows.yml
           git commit -m "feat: Ritmo 3.4.0 Windows e notificacoes seguras"
           git push origin main
