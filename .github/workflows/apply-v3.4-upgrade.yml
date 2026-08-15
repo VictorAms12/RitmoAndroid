@@ -1,0 +1,678 @@
+name: Apply Ritmo 3.4 Upgrade
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade:
+    if: ${{ contains(github.event.head_commit.message, 'add Ritmo 3.4 migration workflow') }}
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.4"
+          channel: "stable"
+          cache: true
+
+      - name: Generate Windows platform
+        shell: bash
+        run: |
+          rm -rf "$RUNNER_TEMP/ritmo_windows_template"
+          flutter create --platforms=windows --project-name ritmo "$RUNNER_TEMP/ritmo_windows_template"
+          rm -rf windows
+          cp -R "$RUNNER_TEMP/ritmo_windows_template/windows" windows
+
+      - name: Apply source fixes and desktop upgrade
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          def read(path):
+              return Path(path).read_text(encoding='utf-8')
+
+          def write(path, text):
+              p = Path(path)
+              p.parent.mkdir(parents=True, exist_ok=True)
+              p.write_text(text, encoding='utf-8', newline='\n')
+
+          def replace_once(path, old, new, label):
+              text = read(path)
+              if new in text:
+                  print(f'already applied: {label}')
+                  return
+              if old not in text:
+                  raise SystemExit(f'expected block not found: {label} in {path}')
+              write(path, text.replace(old, new, 1))
+              print(f'updated: {label}')
+
+          # -----------------------------------------------------------------
+          # Android notification data safety: keep schema 8 and Smart Planner
+          # metadata whenever native notification actions rewrite local JSON.
+          # -----------------------------------------------------------------
+          store = 'android/app/src/main/java/com/ritmo/mobile/Store.java'
+          replace_once(store,
+              '            root.put("schemaVersion", 6);',
+              '            root.put("schemaVersion", 8);',
+              'native schema version')
+
+          replace_once(store,
+              '        public boolean flexible;\n        public List<Subtask> subtasks = new ArrayList<>();',
+              '        public boolean flexible, inbox;\n        public String energy, preferredPeriod;\n        public List<Subtask> subtasks = new ArrayList<>();',
+              'native Smart Planner fields')
+
+          replace_once(store,
+              '            this.flexible = flexible;\n        }',
+              '            this.flexible = flexible;\n            this.inbox = false;\n            this.energy = "medium";\n            this.preferredPeriod = "any";\n        }',
+              'native Smart Planner defaults')
+
+          replace_once(store,
+              '            o.put("deadline", deadline); o.put("flexible", flexible);',
+              '            o.put("deadline", deadline); o.put("flexible", flexible);\n            o.put("inbox", inbox); o.put("energy", energy); o.put("preferredPeriod", preferredPeriod);',
+              'native Smart Planner json write')
+
+          replace_once(store,
+              '                    o.optString("deadline", date), o.optBoolean("flexible", false));\n            JSONArray a = o.optJSONArray("subtasks");',
+              '                    o.optString("deadline", date), o.optBoolean("flexible", false));\n            t.inbox = o.optBoolean("inbox", false);\n            t.energy = o.optString("energy", "medium");\n            t.preferredPeriod = o.optString("preferredPeriod", "any");\n            JSONArray a = o.optJSONArray("subtasks");',
+              'native Smart Planner json read')
+
+          replace_once(store,
+              '            if (t.subtasks == null) t.subtasks = new ArrayList<>();',
+              '            if (t.energy == null || t.energy.trim().isEmpty()) t.energy = "medium";\n            if (t.preferredPeriod == null || t.preferredPeriod.trim().isEmpty()) t.preferredPeriod = "any";\n            if (t.subtasks == null) t.subtasks = new ArrayList<>();',
+              'native Smart Planner sanitize')
+
+          # Keep the native fallback aligned with the current neutral/indigo UI.
+          text = read(store)
+          text = text.replace('r.accent = "green";', 'r.accent = "indigo";')
+          write(store, text)
+
+          # -----------------------------------------------------------------
+          # Desktop-adaptive shell: NavigationRail on wide Windows layouts.
+          # Mobile keeps the current bottom bar/FAB implementation.
+          # -----------------------------------------------------------------
+          shell = 'lib/screens/shell.dart'
+          text = read(shell)
+          start_marker = '    return AnnotatedRegion<SystemUiOverlayStyle>('
+          end_marker = '\n  }\n}\n\nclass _RitmoBottomBar'
+          start = text.index(start_marker)
+          end = text.index(end_marker, start)
+          replacement = r'''    final pageView = PageView(
+      controller: _pages,
+      onPageChanged: (value) {
+        if (_tabTransitioning || value == _index) return;
+        setState(() => _index = value);
+      },
+      children: pages,
+    );
+    final width = MediaQuery.sizeOf(context).width;
+    final desktop = width >= 900;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      child: desktop
+          ? Scaffold(
+              body: SafeArea(
+                child: Row(
+                  children: [
+                    NavigationRail(
+                      selectedIndex: _index,
+                      onDestinationSelected: _select,
+                      extended: width >= 1180,
+                      minWidth: 78,
+                      minExtendedWidth: 210,
+                      groupAlignment: -.72,
+                      leading: Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 10, 10, 18),
+                        child: FloatingActionButton.small(
+                          tooltip: 'Adicionar',
+                          onPressed: _showAddMenu,
+                          child: const Icon(Icons.add_rounded),
+                        ),
+                      ),
+                      destinations: const [
+                        NavigationRailDestination(
+                          icon: Icon(Icons.home_outlined),
+                          selectedIcon: Icon(Icons.home_rounded),
+                          label: Text('Hoje'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.calendar_month_outlined),
+                          selectedIcon: Icon(Icons.calendar_month_rounded),
+                          label: Text('Agenda'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.insights_outlined),
+                          selectedIcon: Icon(Icons.insights_rounded),
+                          label: Text('Progresso'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.tune_outlined),
+                          selectedIcon: Icon(Icons.tune_rounded),
+                          label: Text('Ajustes'),
+                        ),
+                      ],
+                    ),
+                    VerticalDivider(
+                      width: 1,
+                      thickness: 1,
+                      color: Theme.of(context).dividerColor,
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1500),
+                          child: pageView,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : Scaffold(
+              extendBody: true,
+              body: SafeArea(
+                top: true,
+                bottom: false,
+                child: pageView,
+              ),
+              floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+              floatingActionButton: Semantics(
+                button: true,
+                label: 'Adicionar',
+                child: FloatingActionButton(
+                  elevation: 7,
+                  onPressed: _showAddMenu,
+                  child: const Icon(Icons.add_rounded, size: 30),
+                ),
+              ),
+              bottomNavigationBar: _RitmoBottomBar(
+                index: _index,
+                onSelected: _select,
+              ),
+            ),
+    );'''
+          text = text[:start] + replacement + text[end:]
+          write(shell, text)
+
+          # -----------------------------------------------------------------
+          # Version 3.4.0 / build 12.
+          # -----------------------------------------------------------------
+          pub = read('pubspec.yaml')
+          pub = re.sub(r'^version:\s*.*$', 'version: 3.4.0+12', pub, flags=re.M)
+          write('pubspec.yaml', pub)
+
+          gradle = read('android/app/build.gradle')
+          gradle = re.sub(r'flutterVersionCode = localProperties\.getProperty\("flutter\.versionCode"\) \?: "\d+"',
+                          'flutterVersionCode = localProperties.getProperty("flutter.versionCode") ?: "12"', gradle)
+          gradle = re.sub(r'flutterVersionName = localProperties\.getProperty\("flutter\.versionName"\) \?: "[^"]+"',
+                          'flutterVersionName = localProperties.getProperty("flutter.versionName") ?: "3.4.0"', gradle)
+          write('android/app/build.gradle', gradle)
+
+          apk = read('.github/workflows/build-apk.yml')
+          apk = re.sub(r'flutter\.versionCode=\d+', 'flutter.versionCode=12', apk)
+          apk = re.sub(r'flutter\.versionName=[0-9.]+', 'flutter.versionName=3.4.0', apk)
+          apk = re.sub(r'Ritmo-v[0-9.]+\.apk', 'Ritmo-v3.4.0.apk', apk)
+          apk = re.sub(r'Ritmo-v[0-9.]+-APK', 'Ritmo-v3.4.0-APK', apk)
+          write('.github/workflows/build-apk.yml', apk)
+
+          settings = read('lib/screens/settings_page.dart')
+          settings = settings.replace("title: const Text('Ritmo 3.3.0'),", "title: const Text('Ritmo 3.4.0'),")
+          settings = settings.replace(
+              "'Inbox, busca global, timeline e Smart Planner 2.0 · dados locais · sem conta obrigatória.',",
+              "'Android + Windows · Inbox, busca global, timeline e Smart Planner 2.0 · dados locais.',")
+          write('lib/screens/settings_page.dart', settings)
+
+          # -----------------------------------------------------------------
+          # Windows runner polish.
+          # -----------------------------------------------------------------
+          main_cpp = Path('windows/runner/main.cpp')
+          if main_cpp.exists():
+              w = read(main_cpp)
+              w = w.replace('Win32Window::Size size(1280, 720);', 'Win32Window::Size size(1280, 800);')
+              w = w.replace('window.Create(L"ritmo"', 'window.Create(L"Ritmo"')
+              write(main_cpp, w)
+
+          rc = Path('windows/runner/Runner.rc')
+          if rc.exists():
+              w = read(rc)
+              w = w.replace('"ritmo"', '"Ritmo"')
+              write(rc, w)
+
+          # -----------------------------------------------------------------
+          # Dedicated Windows CI. Artifact is a portable ZIP with exe + DLLs.
+          # -----------------------------------------------------------------
+          windows_workflow = r'''name: Build Ritmo Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main", "master" ]
+    tags: [ "v*" ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.4"
+          channel: "stable"
+          cache: true
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Fetch packages
+        run: flutter pub get
+
+      - name: Analyze Flutter source
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      - name: Package portable Windows build
+        shell: pwsh
+        run: |
+          $source = "build\windows\x64\runner\Release"
+          if (-not (Test-Path $source)) { throw "Windows release folder not found: $source" }
+          $dest = "dist\Ritmo-Windows-v3.4.0"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Copy-Item "$source\*" $dest -Recurse -Force
+          Compress-Archive -Path "$dest\*" -DestinationPath "Ritmo-v3.4.0-Windows.zip" -Force
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ritmo-v3.4.0-Windows
+          path: Ritmo-v3.4.0-Windows.zip
+          if-no-files-found: error
+          retention-days: 30
+'''
+          write('.github/workflows/build-windows.yml', windows_workflow)
+
+          # -----------------------------------------------------------------
+          # Professional GitHub README following the structure used in the
+          # user's other project documentation: overview, stack, features,
+          # architecture, execution, project structure and roadmap.
+          # -----------------------------------------------------------------
+          readme = r'''# Ritmo
+
+> **Planejamento pessoal, tarefas, hábitos e foco em um único aplicativo.**
+
+O **Ritmo** é um aplicativo de produtividade desenvolvido em **Flutter** para organizar tarefas, compromissos, hábitos, metas, projetos e sessões de foco. O projeto segue uma abordagem **offline-first**, com processamento local e um **Smart Planner** capaz de redistribuir tarefas flexíveis de acordo com prazo, prioridade, duração, energia, horários disponíveis e carga diária.
+
+A partir da versão **3.4.0**, o mesmo projeto possui builds oficiais para **Android** e **Windows**.
+
+---
+
+## Visão geral
+
+O objetivo do Ritmo é reduzir o trabalho de manter uma rotina organizada. Em vez de funcionar apenas como uma lista de tarefas, o aplicativo conecta planejamento, execução e acompanhamento de progresso.
+
+O fluxo principal é:
+
+**capturar → organizar → planejar → executar → revisar**
+
+- **Capturar:** registre rapidamente algo na Caixa de Entrada.
+- **Organizar:** defina prazo, projeto, duração, prioridade e contexto.
+- **Planejar:** use o Smart Planner 2.0 para distribuir tarefas flexíveis.
+- **Executar:** acompanhe o dia, hábitos e sessões de foco.
+- **Revisar:** consulte progresso, histórico e fechamento diário.
+
+---
+
+## Plataformas
+
+| Recurso | Android | Windows |
+|---|:---:|:---:|
+| Tarefas, projetos e metas | ✅ | ✅ |
+| Hábitos e recorrências | ✅ | ✅ |
+| Inbox / Caixa de Entrada | ✅ | ✅ |
+| Smart Planner 2.0 | ✅ | ✅ |
+| Agenda e Kanban | ✅ | ✅ |
+| Estatísticas e histórico | ✅ | ✅ |
+| Modo Foco | ✅ | ✅ |
+| Tema claro / escuro / sistema | ✅ | ✅ |
+| Lembretes nativos | ✅ | — |
+| Ações **Concluir** e **Adiar 10 min** na notificação | ✅ | — |
+| Widget | ✅ | — |
+| Timer de foco em foreground/background | ✅ | — |
+
+> No Windows, o Ritmo utiliza armazenamento local próprio. A sincronização automática Android ↔ Windows não faz parte desta versão.
+
+---
+
+## Principais funcionalidades
+
+### Hoje
+- resumo do dia e progresso combinado;
+- tarefas agrupadas por período;
+- hábitos do dia;
+- tempo planejado e minutos de foco;
+- tarefas atrasadas;
+- fechamento diário com humor e observações;
+- acesso rápido à Central.
+
+### Caixa de Entrada
+A **Inbox** permite registrar uma tarefa sem interromper o que você está fazendo para escolher data, horário e projeto. Depois, a tarefa pode ser enviada para hoje, amanhã ou aberta no editor completo.
+
+### Smart Planner 2.0
+O planejador considera:
+
+- prioridade;
+- prazo;
+- duração prevista;
+- duração histórica de sessões de foco;
+- energia necessária;
+- período preferido do dia;
+- capacidade diária configurada;
+- compromissos e tarefas fixas;
+- hábitos com horário;
+- fim de semana, conforme preferência.
+
+Antes de aplicar mudanças, o Ritmo mostra uma **prévia** com o motivo de cada sugestão. É possível aceitar apenas as alterações desejadas e desfazer o último planejamento.
+
+### Organização
+- calendário mensal;
+- timeline diária;
+- Kanban com drag-and-drop;
+- projetos;
+- metas;
+- subtarefas;
+- recorrências;
+- prioridades manual e automática;
+- busca global.
+
+### Foco e progresso
+- Pomodoro e sessões personalizadas;
+- histórico de foco;
+- estatísticas semanais;
+- heatmap de consistência;
+- distribuição por categoria;
+- streak de hábitos;
+- comparação entre planejamento e execução.
+
+---
+
+## Notificações Android
+
+As notificações de tarefas oferecem ações rápidas:
+
+- **Concluir** — marca a tarefa como concluída, registra o histórico e atualiza os dados locais;
+- **Adiar 10 min** — agenda um novo lembrete sem alterar o horário original da tarefa.
+
+Na versão 3.4.0, a camada nativa foi alinhada ao **schema 8**. Isso garante que ações executadas diretamente pela notificação preservem os campos usados pelo Smart Planner, incluindo `inbox`, `energy` e `preferredPeriod`.
+
+O Android pode ajustar alguns alarmes em modo de economia de bateria, portanto o adiamento não deve ser tratado como um despertador de precisão absoluta.
+
+---
+
+## Design
+
+A interface utiliza **Material 3** e um design system próprio.
+
+### Tema escuro
+- preto e grafite como base;
+- superfícies em diferentes níveis de cinza;
+- índigo como cor primária;
+- cores semânticas apenas para estado e atenção.
+
+### Tema claro
+- branco e cinza frio;
+- contraste elevado para métricas e indicadores;
+- índigo como identidade visual principal.
+
+Em telas largas, como notebooks e desktops, o Ritmo troca automaticamente a navegação inferior por uma **Navigation Rail lateral**, aproveitando melhor o espaço disponível.
+
+---
+
+## Tecnologias
+
+| Tecnologia | Uso |
+|---|---|
+| **Flutter / Dart** | Interface e regras de negócio multiplataforma |
+| **Material 3** | Design system e componentes |
+| **Shared Preferences** | Persistência local |
+| **Java / Android SDK** | notificações, alarmes, widget e timer em background |
+| **MethodChannel** | ponte Flutter ↔ Android nativo |
+| **GitHub Actions** | build automatizado de Android e Windows |
+| **Gradle** | build Android |
+| **CMake / Visual Studio Build Tools** | build Windows via Flutter |
+
+---
+
+## Arquitetura
+
+```text
+Ritmo
+├── lib/
+│   ├── core/          # estado global, tema e bridge nativa
+│   ├── models/        # modelos e serialização
+│   ├── screens/       # telas principais
+│   ├── services/      # Smart Planner e regras de domínio
+│   ├── sheets/        # editores e bottom sheets
+│   └── widgets/       # componentes reutilizáveis
+├── android/
+│   └── app/src/main/
+│       ├── java/      # notificações, alarmes, widget e foreground service
+│       └── res/       # recursos Android
+├── windows/           # runner desktop Flutter
+└── .github/workflows/
+    ├── build-apk.yml
+    └── build-windows.yml
+```
+
+A maior parte da aplicação é compartilhada entre Android e Windows. Recursos dependentes do sistema operacional ficam isolados na camada nativa.
+
+---
+
+## Dados e compatibilidade
+
+### Android
+O package continua sendo:
+
+```text
+com.ritmo.mobile
+```
+
+A assinatura da série 2.x foi preservada, permitindo atualizar instalações compatíveis sem trocar o identificador do aplicativo.
+
+Os dados Android são mantidos em:
+
+```text
+SharedPreferences: ritmo_prefs
+chave: ritmo_data
+schemaVersion: 8
+```
+
+O Flutter utiliza um `MethodChannel` para acessar a camada nativa e também mantém fallback pelo `shared_preferences`.
+
+### Windows
+O Windows utiliza a implementação desktop do `shared_preferences`. Os dados ficam no perfil local do usuário e são independentes dos dados Android nesta versão.
+
+---
+
+## Build automatizado
+
+### Android
+Qualquer push para `main` executa:
+
+```text
+.github/workflows/build-apk.yml
+```
+
+Artifact esperado:
+
+```text
+Ritmo-v3.4.0-APK
+└── Ritmo-v3.4.0.apk
+```
+
+### Windows
+O desktop é compilado em `windows-latest` pelo workflow:
+
+```text
+.github/workflows/build-windows.yml
+```
+
+Artifact esperado:
+
+```text
+Ritmo-v3.4.0-Windows
+└── Ritmo-v3.4.0-Windows.zip
+```
+
+O ZIP contém o executável e as DLLs necessárias. Extraia a pasta completa antes de executar o aplicativo.
+
+---
+
+## Executando o projeto
+
+Pré-requisitos:
+
+- Flutter 3.44.4 ou compatível;
+- Dart 3.12 ou compatível;
+- Android Studio / Android SDK para Android;
+- Visual Studio com **Desktop development with C++** para Windows.
+
+Instale as dependências:
+
+```bash
+flutter pub get
+```
+
+### Android
+
+```bash
+flutter run
+```
+
+ou:
+
+```bash
+flutter build apk --release
+```
+
+### Windows
+
+```bash
+flutter config --enable-windows-desktop
+flutter run -d windows
+```
+
+Build release:
+
+```bash
+flutter build windows --release
+```
+
+---
+
+## Smart Planner: regras de segurança
+
+O planejador não move automaticamente:
+
+- tarefas concluídas;
+- tarefas recorrentes;
+- compromissos fixos;
+- itens ainda mantidos na Inbox.
+
+Somente tarefas marcadas como **flexíveis** entram na distribuição automática.
+
+---
+
+## Roadmap
+
+Próximas possibilidades de evolução:
+
+- sincronização Android ↔ Windows;
+- backup e restauração em arquivo;
+- notificações nativas no Windows;
+- recorrências avançadas;
+- dashboard totalmente personalizável;
+- dependências entre tarefas;
+- estimativa de duração baseada em histórico mais amplo;
+- melhorias adicionais de acessibilidade e atalhos de teclado.
+
+---
+
+## Versão atual
+
+```text
+Ritmo 3.4.0
+versionCode: 12
+schemaVersion: 8
+Flutter: 3.44.4
+Android + Windows
+```
+
+---
+
+## Autor
+
+Desenvolvido por **Victor Alexandre** como projeto de produtividade pessoal e exploração prática de desenvolvimento multiplataforma, UX, automação e arquitetura offline-first.
+'''
+          write('README.md', readme)
+
+          # Changelog
+          changelog_path = Path('CHANGELOG.md')
+          old = changelog_path.read_text(encoding='utf-8') if changelog_path.exists() else '# Changelog\n'
+          body = re.sub(r'^# Changelog\s*', '', old)
+          entry = r'''# Changelog
+
+## 3.4.0
+
+### Android
+- Corrigida a persistência ao concluir tarefas pela notificação.
+- A camada nativa agora preserva `inbox`, `energy` e `preferredPeriod`.
+- `Store.java` alinhado ao schemaVersion 8.
+- Ações `Concluir` e `Adiar 10 min` mantidas sem degradar os dados do Smart Planner.
+
+### Windows
+- Adicionado runner Flutter para Windows.
+- Interface principal adaptada para telas largas com Navigation Rail.
+- Adicionado build release automatizado no GitHub Actions.
+- Artifact portátil em ZIP com executável e dependências.
+
+### Documentação
+- README refeito com visão geral, funcionalidades, arquitetura, plataformas, builds e roadmap.
+
+'''
+          write('CHANGELOG.md', entry + body)
+
+          print('Ritmo 3.4 source migration complete')
+          PY
+
+      - name: Validate Flutter source
+        shell: bash
+        run: |
+          flutter pub get
+          flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Commit upgrade
+        shell: bash
+        run: |
+          git config user.name "VictorAms12"
+          git config user.email "victoralexandresoaresmaranhao@gmail.com"
+          git add -A
+          git commit -m "feat: Ritmo 3.4.0 Windows e notificacoes seguras"
+          git push origin main
