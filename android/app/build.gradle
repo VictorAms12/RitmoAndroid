@@ -10,8 +10,8 @@ if (localPropertiesFile.exists()) {
     localPropertiesFile.withReader("UTF-8") { reader -> localProperties.load(reader) }
 }
 
-def flutterVersionCode = localProperties.getProperty("flutter.versionCode") ?: "11"
-def flutterVersionName = localProperties.getProperty("flutter.versionName") ?: "3.3.0"
+def flutterVersionCode = localProperties.getProperty("flutter.versionCode") ?: "12"
+def flutterVersionName = localProperties.getProperty("flutter.versionName") ?: "3.4.0"
 
 android {
     namespace "com.ritmo.mobile"

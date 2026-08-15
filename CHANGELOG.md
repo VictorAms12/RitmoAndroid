@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.4.0
+
+### Android
+- Corrigida a persistência ao concluir tarefas pela notificação.
+- A camada nativa agora preserva `inbox`, `energy` e `preferredPeriod`.
+- `Store.java` alinhado ao schemaVersion 8.
+- Ações `Concluir` e `Adiar 10 min` mantidas sem degradar os dados do Smart Planner.
+
+### Windows
+- Adicionado runner Flutter para Windows.
+- Interface principal adaptada para telas largas com Navigation Rail.
+- Adicionado build release automatizado no GitHub Actions.
+- Artifact portátil em ZIP com executável e dependências.
+
+### Documentação
+- README refeito com visão geral, funcionalidades, arquitetura, plataformas, builds e roadmap.
+
 ## 3.0.1
 
 ### Visual

@@ -115,6 +115,8 @@ public class Store {
             if (t.recurrence == null) t.recurrence = "none";
             if (t.deadline == null || t.deadline.length() != 10) t.deadline = t.date;
             if (t.minutes < 0) t.minutes = 0;
+            if (t.energy == null || t.energy.trim().isEmpty()) t.energy = "medium";
+            if (t.preferredPeriod == null || t.preferredPeriod.trim().isEmpty()) t.preferredPeriod = "any";
             if (t.subtasks == null) t.subtasks = new ArrayList<>();
         }
         for (Goal g : goals) {
@@ -129,7 +131,7 @@ public class Store {
             if (r.startDate == null || r.startDate.length() != 10) r.startDate = today();
             if (r.time == null) r.time = "";
             if (r.category == null || r.category.trim().isEmpty()) r.category = "Pessoal";
-            if (r.accent == null || r.accent.trim().isEmpty()) r.accent = "green";
+            if (r.accent == null || r.accent.trim().isEmpty()) r.accent = "indigo";
             if (r.minutes < 0) r.minutes = 0;
         }
         for (Project p : projects) {
@@ -151,7 +153,7 @@ public class Store {
             for (FocusSession item : focusSessions) f.put(item.toJson());
             for (DayReview item : dayReviews) dr.put(item.toJson());
             root.put("tasks", t); root.put("goals", g); root.put("routines", r); root.put("completions", c); root.put("projects", p); root.put("focusSessions", f); root.put("dayReviews", dr);
-            root.put("schemaVersion", 6);
+            root.put("schemaVersion", 8);
             prefs.edit().putString(KEY_DATA, root.toString()).apply();
             try { RitmoWidgetProvider.updateAll(appContext); } catch (Throwable ignored) { }
         } catch (Exception ignored) { }
@@ -524,7 +526,8 @@ public class Store {
         public long id, projectId;
         public String title, description, date, time, deadline, priority, category, status, recurrence;
         public int minutes, reminderMinutes;
-        public boolean flexible;
+        public boolean flexible, inbox;
+        public String energy, preferredPeriod;
         public List<Subtask> subtasks = new ArrayList<>();
 
         public Task(long id, String title, String description, String date, String time, String priority, int minutes,
@@ -546,6 +549,9 @@ public class Store {
             this.recurrence = recurrence; this.reminderMinutes = reminderMinutes; this.projectId = projectId;
             this.deadline = (deadline == null || deadline.length() != 10) ? date : deadline;
             this.flexible = flexible;
+            this.inbox = false;
+            this.energy = "medium";
+            this.preferredPeriod = "any";
         }
 
         public String effectivePriority() {
@@ -564,6 +570,7 @@ public class Store {
             JSONObject o = new JSONObject();
             o.put("id", id); o.put("title", title); o.put("description", description); o.put("date", date); o.put("time", time);
             o.put("deadline", deadline); o.put("flexible", flexible);
+            o.put("inbox", inbox); o.put("energy", energy); o.put("preferredPeriod", preferredPeriod);
             o.put("priority", priority); o.put("minutes", minutes); o.put("category", category); o.put("status", status);
             o.put("recurrence", recurrence); o.put("reminderMinutes", reminderMinutes); o.put("projectId", projectId);
             JSONArray a = new JSONArray(); for (Subtask s : subtasks) a.put(s.toJson()); o.put("subtasks", a);
@@ -577,6 +584,9 @@ public class Store {
                     o.optString("category", "Pessoal"), o.optString("status", "todo"), o.optString("recurrence", "none"),
                     o.has("reminderMinutes") ? o.optInt("reminderMinutes", -1) : -1, o.optLong("projectId", 0L),
                     o.optString("deadline", date), o.optBoolean("flexible", false));
+            t.inbox = o.optBoolean("inbox", false);
+            t.energy = o.optString("energy", "medium");
+            t.preferredPeriod = o.optString("preferredPeriod", "any");
             JSONArray a = o.optJSONArray("subtasks");
             if (a != null) for (int i = 0; i < a.length(); i++) t.subtasks.add(Subtask.fromJson(a.optJSONObject(i)));
             return t;

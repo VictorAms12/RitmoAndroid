@@ -151,37 +151,101 @@ class _RitmoShellState extends State<RitmoShell> {
           dark ? Brightness.light : Brightness.dark,
     );
 
+    final pageView = PageView(
+      controller: _pages,
+      onPageChanged: (value) {
+        if (_tabTransitioning || value == _index) return;
+        setState(() => _index = value);
+      },
+      children: pages,
+    );
+    final width = MediaQuery.sizeOf(context).width;
+    final desktop = width >= 900;
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: overlayStyle,
-      child: Scaffold(
-        extendBody: true,
-        body: SafeArea(
-          top: true,
-          bottom: false,
-          child: PageView(
-            controller: _pages,
-            onPageChanged: (value) {
-              if (_tabTransitioning || value == _index) return;
-              setState(() => _index = value);
-            },
-            children: pages,
-          ),
-        ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: Semantics(
-        button: true,
-        label: 'Adicionar',
-        child: FloatingActionButton(
-          elevation: 7,
-          onPressed: _showAddMenu,
-          child: const Icon(Icons.add_rounded, size: 30),
-        ),
-      ),
-        bottomNavigationBar: _RitmoBottomBar(
-          index: _index,
-          onSelected: _select,
-        ),
-      ),
+      child: desktop
+          ? Scaffold(
+              body: SafeArea(
+                child: Row(
+                  children: [
+                    NavigationRail(
+                      selectedIndex: _index,
+                      onDestinationSelected: _select,
+                      extended: width >= 1180,
+                      minWidth: 78,
+                      minExtendedWidth: 210,
+                      groupAlignment: -.72,
+                      leading: Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 10, 10, 18),
+                        child: FloatingActionButton.small(
+                          tooltip: 'Adicionar',
+                          onPressed: _showAddMenu,
+                          child: const Icon(Icons.add_rounded),
+                        ),
+                      ),
+                      destinations: const [
+                        NavigationRailDestination(
+                          icon: Icon(Icons.home_outlined),
+                          selectedIcon: Icon(Icons.home_rounded),
+                          label: Text('Hoje'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.calendar_month_outlined),
+                          selectedIcon: Icon(Icons.calendar_month_rounded),
+                          label: Text('Agenda'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.insights_outlined),
+                          selectedIcon: Icon(Icons.insights_rounded),
+                          label: Text('Progresso'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.tune_outlined),
+                          selectedIcon: Icon(Icons.tune_rounded),
+                          label: Text('Ajustes'),
+                        ),
+                      ],
+                    ),
+                    VerticalDivider(
+                      width: 1,
+                      thickness: 1,
+                      color: Theme.of(context).dividerColor,
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1500),
+                          child: pageView,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : Scaffold(
+              extendBody: true,
+              body: SafeArea(
+                top: true,
+                bottom: false,
+                child: pageView,
+              ),
+              floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+              floatingActionButton: Semantics(
+                button: true,
+                label: 'Adicionar',
+                child: FloatingActionButton(
+                  elevation: 7,
+                  onPressed: _showAddMenu,
+                  child: const Icon(Icons.add_rounded, size: 30),
+                ),
+              ),
+              bottomNavigationBar: _RitmoBottomBar(
+                index: _index,
+                onSelected: _select,
+              ),
+            ),
     );
   }
 }
