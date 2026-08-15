@@ -1,0 +1,52 @@
+name: Build Ritmo Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main", "master" ]
+    tags: [ "v*" ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.4"
+          channel: "stable"
+          cache: true
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Fetch packages
+        run: flutter pub get
+
+      - name: Analyze Flutter source
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      - name: Package portable Windows build
+        shell: pwsh
+        run: |
+          $source = "build\windows\x64\runner\Release"
+          if (-not (Test-Path $source)) { throw "Windows release folder not found: $source" }
+          $dest = "dist\Ritmo-Windows-v3.4.0"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Copy-Item "$source\*" $dest -Recurse -Force
+          Compress-Archive -Path "$dest\*" -DestinationPath "Ritmo-v3.4.0-Windows.zip" -Force
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ritmo-v3.4.0-Windows
+          path: Ritmo-v3.4.0-Windows.zip
+          if-no-files-found: error
+          retention-days: 30
