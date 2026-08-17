@@ -5,11 +5,23 @@
 .flutter-plugins
 .flutter-plugins-dependencies
 build/
+
+# Android / Gradle
 android/.gradle/
 android/local.properties
+android/key.properties
 android/app/debug
 android/app/profile
 android/app/release
+
+# Signing / secrets
+*.keystore
+*.jks
+key.properties
+.env
+.env.*
+
+# IDE / OS
 .idea/
 .vscode/
 *.iml
