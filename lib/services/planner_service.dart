@@ -96,8 +96,12 @@ class PlannerService {
     RitmoData data,
     PlannerSettings settings, {
     String? fromDate,
+    DateTime? now,
   }) {
-    final start = fromDate ?? isoDate(DateTime.now());
+    final clock = now ?? DateTime.now();
+    final currentDate = isoDate(clock);
+    final currentMinute = ((clock.hour * 60 + clock.minute + 4) ~/ 5) * 5;
+    final start = fromDate ?? currentDate;
     final days = settings.horizonDays.clamp(1, 14).toInt();
     final horizon = addDaysIso(start, days - 1);
     final load = <String, int>{};
@@ -112,7 +116,9 @@ class PlannerService {
       occupied[date] = [];
 
       for (final routine in data.routines) {
-        if (!routine.dueOn(date) || routine.doneOn(date)) continue;
+        if (!routine.dueOn(date)) continue;
+        // A habit that was already completed still consumed part of that day's
+        // available capacity and must remain represented in the plan.
         load[date] = (load[date] ?? 0) + max(0, routine.minutes);
         if (routine.time.isNotEmpty) {
           _addOccupied(
@@ -127,18 +133,38 @@ class PlannerService {
 
     final eligible = <TaskItem>[];
     for (final task in data.tasks) {
-      if (task.status == 'done' || task.inbox) continue;
+      if (task.inbox) continue;
+
+      if (task.status == 'done') {
+        if (task.date.compareTo(start) >= 0 &&
+            task.date.compareTo(horizon) <= 0) {
+          final mins = max(0, task.minutes);
+          load[task.date] = (load[task.date] ?? 0) + mins;
+          if (task.time.isNotEmpty) {
+            _addOccupied(
+              occupied[task.date]!,
+              task.time,
+              max(15, mins),
+              settings.breakMinutes,
+            );
+          }
+        }
+        continue;
+      }
 
       final canMove = task.flexible && task.recurrence == 'none';
       final due = task.deadline.length == 10 ? task.deadline : task.date;
-      final relevant = task.date.compareTo(horizon) <= 0 || due.compareTo(horizon) <= 0;
+      final relevant =
+          task.date.compareTo(horizon) <= 0 || due.compareTo(horizon) <= 0;
 
       if (canMove && relevant) {
         eligible.add(task);
         continue;
       }
 
-      if (task.date.compareTo(start) < 0 || task.date.compareTo(horizon) > 0) continue;
+      if (task.date.compareTo(start) < 0 || task.date.compareTo(horizon) > 0) {
+        continue;
+      }
       final mins = max(0, task.minutes);
       load[task.date] = (load[task.date] ?? 0) + mins;
       if (task.time.isNotEmpty) {
@@ -191,6 +217,8 @@ class PlannerService {
           occupied: occupied[date]!,
           settings: settings,
           startDate: start,
+          minimumStartMinute:
+              date == currentDate ? currentMinute : settings.startHour * 60,
         );
 
         if (best == null ||
@@ -213,6 +241,8 @@ class PlannerService {
             occupied: occupied[date]!,
             settings: settings,
             startDate: start,
+            minimumStartMinute:
+                date == currentDate ? currentMinute : settings.startHour * 60,
           );
           if (best == null || candidate.score < best.score) best = candidate;
         }
@@ -223,12 +253,20 @@ class PlannerService {
         time: '',
         score: 99999,
         fits: false,
-        reason: 'Não encontrei uma janela livre dentro das preferências atuais.',
+        reason:
+            'Não encontrei uma janela livre dentro das preferências atuais.',
       );
 
-      final over = !best.fits ||
+      final originalDeadline =
+          task.deadline.length == 10 ? task.deadline : task.date;
+      final missesDeadline = best.date.compareTo(originalDeadline) > 0;
+      final over = missesDeadline ||
+          !best.fits ||
           (load[best.date] ?? 0) + estimate > settings.capacityMinutes ||
           best.time.isEmpty;
+      final assignmentReason = missesDeadline
+          ? '${best.reason} Prazo ultrapassado; revise o prazo ou a carga.'
+          : best.reason;
 
       assignments.add(PlannerAssignment(
         taskId: task.id,
@@ -237,7 +275,7 @@ class PlannerService {
         newDate: best.date,
         newTime: best.time,
         overCapacity: over,
-        reason: best.reason,
+        reason: assignmentReason,
         estimatedMinutes: estimate,
         score: best.score,
       ));
@@ -253,22 +291,33 @@ class PlannerService {
       }
     }
 
-    final overloaded = load.values.where((e) => e > settings.capacityMinutes).length;
+    final overloaded =
+        load.values.where((e) => e > settings.capacityMinutes).length;
     final insights = <String>[];
     if (assignments.isEmpty) {
-      insights.add('Nenhuma tarefa flexível precisa ser redistribuída neste período.');
+      insights.add(
+        'Nenhuma tarefa flexível precisa ser redistribuída neste período.',
+      );
     } else {
       final warnings = assignments.where((e) => e.overCapacity).length;
       if (warnings == 0) {
-        insights.add('Todas as tarefas flexíveis encontraram uma janela dentro da capacidade configurada.');
+        insights.add(
+          'Todas as tarefas flexíveis encontraram uma janela dentro da capacidade configurada.',
+        );
       } else {
-        insights.add('$warnings tarefa${warnings == 1 ? '' : 's'} ainda exige${warnings == 1 ? '' : 'm'} atenção por falta de espaço livre.');
+        insights.add(
+          '$warnings tarefa${warnings == 1 ? '' : 's'} ainda exige${warnings == 1 ? '' : 'm'} atenção por falta de espaço livre ou prazo.',
+        );
       }
       if (historyAdjusted > 0) {
-        insights.add('$historyAdjusted estimativa${historyAdjusted == 1 ? '' : 's'} de duração ajustada${historyAdjusted == 1 ? '' : 's'} usando sessões de foco anteriores.');
+        insights.add(
+          '$historyAdjusted estimativa${historyAdjusted == 1 ? '' : 's'} de duração ajustada${historyAdjusted == 1 ? '' : 's'} usando sessões de foco anteriores.',
+        );
       }
       if (overloaded > 0) {
-        insights.add('$overloaded dia${overloaded == 1 ? '' : 's'} ultrapassa${overloaded == 1 ? '' : 'm'} sua capacidade diária configurada.');
+        insights.add(
+          '$overloaded dia${overloaded == 1 ? '' : 's'} ultrapassa${overloaded == 1 ? '' : 'm'} sua capacidade diária configurada.',
+        );
       }
     }
 
@@ -291,18 +340,31 @@ class PlannerService {
     required List<_Interval> occupied,
     required PlannerSettings settings,
     required String startDate,
+    required int minimumStartMinute,
   }) {
     final period = _preferredPeriod(task);
-    final bounds = _periodBounds(period, settings.startHour * 60, settings.endHour * 60);
-    var slot = _findSlot(occupied, bounds.$1, bounds.$2, estimatedMinutes);
+    final usableStart = max(settings.startHour * 60, minimumStartMinute);
+    final bounds = _periodBounds(
+      period,
+      usableStart,
+      settings.endHour * 60,
+    );
+    var slot = _findSlot(
+      occupied,
+      bounds.$1,
+      bounds.$2,
+      estimatedMinutes,
+      settings.breakMinutes,
+    );
     var periodMatched = slot.isNotEmpty;
 
     if (slot.isEmpty && period != 'any') {
       slot = _findSlot(
         occupied,
-        settings.startHour * 60,
+        usableStart,
         settings.endHour * 60,
         estimatedMinutes,
+        settings.breakMinutes,
       );
     }
 
@@ -331,16 +393,24 @@ class PlannerService {
     });
     if (task.deadline.length == 10) {
       final d = daysBetween(startDate, task.deadline);
-      reasonParts.add(d <= 0 ? 'prazo imediato' : 'prazo em $d dia${d == 1 ? '' : 's'}');
+      reasonParts.add(
+        d <= 0 ? 'prazo imediato' : 'prazo em $d dia${d == 1 ? '' : 's'}',
+      );
     }
     if (period != 'any') {
-      reasonParts.add(periodMatched ? '${_periodLabel(period)} respeitada' : '${_periodLabel(period)} sem espaço; usada melhor janela disponível');
+      reasonParts.add(
+        periodMatched
+            ? '${_periodLabel(period)} respeitada'
+            : '${_periodLabel(period)} sem espaço; usada melhor janela disponível',
+      );
     }
-    reasonParts.add(capacityRatio <= .65
-        ? 'carga leve'
-        : capacityRatio <= .9
-            ? 'carga equilibrada'
-            : 'carga alta');
+    reasonParts.add(
+      capacityRatio <= .65
+          ? 'carga leve'
+          : capacityRatio <= .9
+              ? 'carga equilibrada'
+              : 'carga alta',
+    );
 
     return _Candidate(
       date: date,
@@ -438,15 +508,20 @@ class PlannerService {
     int dayStart,
     int dayEnd,
     int minutes,
+    int breakMinutes,
   ) {
     if (dayEnd <= dayStart || minutes <= 0) return '';
+    final gap = max(0, breakMinutes);
     var cursor = dayStart;
     for (final interval in list) {
       if (interval.end <= dayStart || interval.start >= dayEnd) continue;
-      if (cursor + minutes <= interval.start) return _formatMinutes(cursor);
+      if (cursor + minutes + gap <= interval.start) {
+        return _formatMinutes(cursor);
+      }
       if (interval.end > cursor) cursor = interval.end;
       if (cursor >= dayEnd) return '';
     }
+    // If no block follows, only the task itself must fit before the day ends.
     return cursor + minutes <= dayEnd ? _formatMinutes(cursor) : '';
   }
 }
