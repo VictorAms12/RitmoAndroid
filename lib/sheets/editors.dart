@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../core/app_state.dart';
@@ -61,6 +62,17 @@ Future<void> showTaskEditor(
   );
 }
 
+class _SubtaskDraft {
+  final int id;
+  final TextEditingController controller;
+  bool done;
+
+  _SubtaskDraft({required this.id, required String title, this.done = false})
+      : controller = TextEditingController(text: title);
+
+  void dispose() => controller.dispose();
+}
+
 class TaskEditorSheet extends StatefulWidget {
   final AppState state;
   final TaskItem? original;
@@ -94,7 +106,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
   late String _energy;
   late String _preferredPeriod;
   late int _projectId;
-  final List<TextEditingController> _subtasks = [];
+  final List<_SubtaskDraft> _subtasks = [];
 
   @override
   void initState() {
@@ -116,7 +128,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     _preferredPeriod = t?.preferredPeriod ?? 'any';
     _projectId = t?.projectId ?? 0;
     for (final s in t?.subtasks ?? <Subtask>[]) {
-      _subtasks.add(TextEditingController(text: s.title));
+      _subtasks.add(_SubtaskDraft(id: s.id, title: s.title, done: s.done));
     }
   }
 
@@ -125,16 +137,34 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     _title.dispose();
     _description.dispose();
     _minutes.dispose();
-    for (final c in _subtasks) {
-      c.dispose();
+    for (final subtask in _subtasks) {
+      subtask.dispose();
     }
     super.dispose();
   }
 
   Future<void> _save() async {
     final title = _title.text.trim();
-    if (title.isEmpty) return;
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Informe um título para a tarefa.')),
+      );
+      return;
+    }
+    if (!_inbox && widget.commitment && _time.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Defina um horário para o compromisso.')),
+      );
+      return;
+    }
+    if (!_inbox && _reminder >= 0 && _time.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Defina um horário para usar um lembrete.')),
+      );
+      return;
+    }
     final original = widget.original;
+    final duration = (int.tryParse(_minutes.text.trim()) ?? 30).clamp(0, 1440).toInt();
     final result = TaskItem(
       id: original?.id ?? DateTime.now().microsecondsSinceEpoch,
       projectId: _projectId,
@@ -144,7 +174,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
       time: _inbox ? '' : _time,
       deadline: _inbox ? '2999-12-31' : (_deadline.compareTo(_date) < 0 ? _date : _deadline),
       priority: _priority,
-      minutes: int.tryParse(_minutes.text.trim()) ?? 30,
+      minutes: duration,
       category: _category,
       status: original?.status ?? 'todo',
       recurrence: _recurrence,
@@ -154,15 +184,13 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
       energy: _energy,
       preferredPeriod: _preferredPeriod,
       subtasks: List.generate(_subtasks.length, (index) {
-        final old = original != null && index < original.subtasks.length
-            ? original.subtasks[index]
-            : null;
+        final draft = _subtasks[index];
         return Subtask(
-          id: old?.id ?? DateTime.now().microsecondsSinceEpoch + index,
-          title: _subtasks[index].text.trim().isEmpty
+          id: draft.id,
+          title: draft.controller.text.trim().isEmpty
               ? 'Subtarefa ${index + 1}'
-              : _subtasks[index].text.trim(),
-          done: old?.done ?? false,
+              : draft.controller.text.trim(),
+          done: draft.done,
         );
       }),
     );
@@ -294,6 +322,7 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                   child: TextField(
                     controller: _minutes,
                     keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: const InputDecoration(
                       labelText: 'Duração (min)',
                       prefixIcon: Icon(Icons.timelapse_rounded),
@@ -447,7 +476,10 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                 ),
                 TextButton.icon(
                   onPressed: () => setState(
-                    () => _subtasks.add(TextEditingController()),
+                    () => _subtasks.add(_SubtaskDraft(
+                      id: DateTime.now().microsecondsSinceEpoch,
+                      title: '',
+                    )),
                   ),
                   icon: const Icon(Icons.add_rounded),
                   label: const Text('Adicionar'),
@@ -457,20 +489,31 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
             ...List.generate(_subtasks.length, (index) {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: TextField(
-                  controller: _subtasks[index],
-                  decoration: InputDecoration(
-                    hintText: 'Subtarefa ${index + 1}',
-                    prefixIcon: const Icon(Icons.subdirectory_arrow_right_rounded),
-                    suffixIcon: IconButton(
-                      onPressed: () {
-                        final c = _subtasks.removeAt(index);
-                        c.dispose();
-                        setState(() {});
-                      },
-                      icon: const Icon(Icons.close_rounded),
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: _subtasks[index].done,
+                      onChanged: (value) => setState(
+                        () => _subtasks[index].done = value ?? false,
+                      ),
                     ),
-                  ),
+                    Expanded(
+                      child: TextField(
+                        controller: _subtasks[index].controller,
+                        decoration: InputDecoration(
+                          hintText: 'Subtarefa ${index + 1}',
+                          suffixIcon: IconButton(
+                            onPressed: () {
+                              final draft = _subtasks.removeAt(index);
+                              draft.dispose();
+                              setState(() {});
+                            },
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               );
             }),
@@ -558,8 +601,26 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
   }
 
   Future<void> _save() async {
-    if (_title.text.trim().isEmpty) return;
+    if (_title.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Informe um nome para o hábito.')),
+      );
+      return;
+    }
+    if (_frequency == 'custom' && _selectedWeekdays.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecione pelo menos um dia da semana.')),
+      );
+      return;
+    }
+    if (_reminder >= 0 && _time.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Defina um horário para usar um lembrete.')),
+      );
+      return;
+    }
     final old = widget.original;
+    final duration = (int.tryParse(_minutes.text.trim()) ?? 15).clamp(0, 1440).toInt();
     final item = RoutineItem(
       id: old?.id ?? DateTime.now().microsecondsSinceEpoch,
       title: _title.text.trim(),
@@ -703,6 +764,7 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
                   child: TextField(
                     controller: _minutes,
                     keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: const InputDecoration(
                       labelText: 'Duração (min)',
                       prefixIcon: Icon(Icons.timelapse_rounded),
@@ -793,6 +855,7 @@ Future<void> showGoalEditor(
               TextField(
                 controller: progress,
                 keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: const InputDecoration(
                   labelText: 'Progresso (%)',
                   prefixIcon: Icon(Icons.trending_up_rounded),

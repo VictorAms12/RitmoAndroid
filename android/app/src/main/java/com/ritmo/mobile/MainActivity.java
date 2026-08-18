@@ -84,6 +84,26 @@ public class MainActivity extends FlutterActivity {
                         result.success(null);
                         break;
                     }
+                    case "syncTaskReminder": {
+                        Number taskId = call.argument("taskId");
+                        long id = taskId == null ? 0L : taskId.longValue();
+                        Store store = new Store(this);
+                        Store.Task task = store.findTask(id);
+                        if (task == null) ReminderScheduler.cancel(this, id);
+                        else ReminderScheduler.schedule(this, task);
+                        result.success(null);
+                        break;
+                    }
+                    case "syncRoutineReminder": {
+                        Number routineId = call.argument("routineId");
+                        long id = routineId == null ? 0L : routineId.longValue();
+                        Store store = new Store(this);
+                        Store.Routine routine = store.findRoutine(id);
+                        if (routine == null) RoutineReminderScheduler.cancel(this, id);
+                        else RoutineReminderScheduler.schedule(this, routine);
+                        result.success(null);
+                        break;
+                    }
                     case "loadFocusState": {
                         SharedPreferences p = getSharedPreferences("ritmo_focus", MODE_PRIVATE);
                         Map<String, Object> map = new HashMap<>();

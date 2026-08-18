@@ -140,7 +140,8 @@ class _RingPainter extends CustomPainter {
   bool shouldRepaint(covariant _RingPainter oldDelegate) =>
       oldDelegate.progress != progress ||
       oldDelegate.color != color ||
-      oldDelegate.track != track;
+      oldDelegate.track != track ||
+      oldDelegate.stroke != stroke;
 }
 
 class MetricCard extends StatelessWidget {
@@ -698,7 +699,9 @@ class WeeklyBars extends StatelessWidget {
                       child: AnimatedFractionallySizedBox(
                         duration: const Duration(milliseconds: 500),
                         curve: Curves.easeOutCubic,
-                        heightFactor: factor.clamp(.04, 1).toDouble(),
+                        heightFactor: values[index] == 0
+                            ? 0
+                            : factor.clamp(.04, 1).toDouble(),
                         child: Container(
                           width: 26,
                           decoration: BoxDecoration(

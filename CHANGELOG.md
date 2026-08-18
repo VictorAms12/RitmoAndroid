@@ -1,5 +1,33 @@
 # Changelog
 
+## 3.4.1 — Stability & Performance Polish
+
+### Correções
+- Hábitos respeitam corretamente a data de início no Flutter e no Android nativo.
+- Tarefas da Inbox não entram em métricas diárias, Kanban, atraso ou alarmes.
+- Alarmes antigos não exibem notificações de tarefas já concluídas ou movidas para a Inbox.
+- Recorrência mensal nativa foi alinhada à regra do Flutter para fins de mês.
+- Sessões de foco concluídas em background são recuperadas e registradas ao retornar ao app.
+- Subtarefas preservam identidade e estado ao remover/reordenar itens e agora podem ser marcadas no editor.
+- Lembretes exigem horário e hábitos personalizados exigem pelo menos um dia.
+- Estado vazio da tela Hoje e próxima ação da Timeline foram corrigidos.
+
+### Desempenho
+- Persistência serializada para evitar escritas concorrentes.
+- Sincronização de lembretes passou a ser direcionada para tarefas/hábitos alterados.
+- Smart Planner indexa histórico de foco em uma única passagem.
+- Timer de foco Flutter atualiza uma vez por segundo e pausa o ticker quando necessário.
+- Foreground service Android deixa o cronômetro do sistema atualizar a notificação sem reconstruí-la a cada segundo.
+- Animações decorativas desnecessárias foram reduzidas.
+
+### Design
+- Novo ícone do Ritmo: base grafite, anel índigo e pulso branco.
+- Ícone adaptativo no Android e ICO multirresolução no Windows.
+
+### Qualidade
+- Testes unitários adicionados para modelos, recorrências, Inbox e Smart Planner.
+- Builds Android e Windows passam a executar `flutter test` antes do release.
+
 ## 3.4.0
 
 ### Android

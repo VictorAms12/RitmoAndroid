@@ -14,8 +14,9 @@ public final class RoutineReminderScheduler {
     private RoutineReminderScheduler() { }
 
     public static void schedule(Context context, Store.Routine routine) {
+        if (routine == null) return;
         cancel(context, routine.id);
-        if (routine == null || routine.reminderMinutes < 0 || routine.time == null || routine.time.trim().isEmpty()) return;
+        if (routine.reminderMinutes < 0 || routine.time == null || routine.time.trim().isEmpty()) return;
         try {
             String date = nextDueDate(routine);
             if (date == null) return;
@@ -34,7 +35,7 @@ public final class RoutineReminderScheduler {
     }
 
     public static void scheduleAt(Context context, Store.Routine routine, long when) {
-        if (routine == null || when <= System.currentTimeMillis()) return;
+        if (routine == null || routine.doneOn(Store.today()) || when <= System.currentTimeMillis()) return;
         AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;
         am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pending(context, routine.id, routine.title));

@@ -102,6 +102,9 @@ class PlannerService {
     final horizon = addDaysIso(start, days - 1);
     final load = <String, int>{};
     final occupied = <String, List<_Interval>>{};
+    final focusHistory = settings.useHistory
+        ? _recentFocusAverages(data.focusSessions)
+        : const <int, double>{};
 
     for (var i = 0; i < days; i++) {
       final date = addDaysIso(start, i);
@@ -166,7 +169,7 @@ class PlannerService {
     var historyAdjusted = 0;
 
     for (final task in eligible) {
-      final estimate = _estimateMinutes(task, data, settings.useHistory);
+      final estimate = _estimateMinutes(task, focusHistory);
       if (estimate != max(15, task.minutes)) historyAdjusted++;
 
       var deadline = task.deadline.length == 10 ? task.deadline : task.date;
@@ -348,17 +351,25 @@ class PlannerService {
     );
   }
 
-  static int _estimateMinutes(TaskItem task, RitmoData data, bool useHistory) {
+  static Map<int, double> _recentFocusAverages(List<FocusSession> sessions) {
+    final recent = <int, List<int>>{};
+    for (final session in sessions) {
+      if (session.taskId == 0 || session.actualMinutes <= 0) continue;
+      final values = recent.putIfAbsent(session.taskId, () => <int>[]);
+      values.add(session.actualMinutes);
+      if (values.length > 5) values.removeAt(0);
+    }
+    return {
+      for (final entry in recent.entries)
+        entry.key: entry.value.fold<int>(0, (sum, value) => sum + value) /
+            entry.value.length,
+    };
+  }
+
+  static int _estimateMinutes(TaskItem task, Map<int, double> history) {
     final base = max(15, task.minutes);
-    if (!useHistory) return base;
-
-    final sessions = data.focusSessions
-        .where((e) => e.taskId == task.id && e.actualMinutes > 0)
-        .toList();
-    if (sessions.isEmpty) return base;
-
-    final recent = sessions.length <= 5 ? sessions : sessions.sublist(sessions.length - 5);
-    final avg = recent.fold<int>(0, (sum, e) => sum + e.actualMinutes) / recent.length;
+    final avg = history[task.id];
+    if (avg == null) return base;
     final blended = (base * .55 + avg * .45).round();
     return blended.clamp(15, max(30, base * 2)).toInt();
   }
@@ -430,8 +441,7 @@ class PlannerService {
   ) {
     if (dayEnd <= dayStart || minutes <= 0) return '';
     var cursor = dayStart;
-    final sorted = [...list]..sort((a, b) => a.start.compareTo(b.start));
-    for (final interval in sorted) {
+    for (final interval in list) {
       if (interval.end <= dayStart || interval.start >= dayEnd) continue;
       if (cursor + minutes <= interval.start) return _formatMinutes(cursor);
       if (interval.end > cursor) cursor = interval.end;

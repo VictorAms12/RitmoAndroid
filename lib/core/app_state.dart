@@ -14,6 +14,7 @@ enum RitmoThemeMode { system, light, dark }
 
 class AppState extends ChangeNotifier {
   final SharedPreferencesAsync _prefs = SharedPreferencesAsync();
+  Future<void> _saveChain = Future<void>.value();
 
   RitmoData data = RitmoData();
   bool loading = true;
@@ -58,11 +59,12 @@ class AppState extends ChangeNotifier {
       await _loadSettings();
       await _loadData();
       await _loadFocus();
+      await _recoverExpiredFocusIfNeeded();
       _normalizeRecurringTasks();
       if (autoReplanOverdue) {
         final last = await _prefs.getString('last_auto_replan_date');
         if (last != today) {
-          replanOverdueFlexible(notify: false);
+          await replanOverdueFlexible(notify: false);
           await _prefs.setString('last_auto_replan_date', today);
         }
       }
@@ -81,6 +83,11 @@ class AppState extends ChangeNotifier {
     try {
       await _loadData();
       await _loadFocus();
+      final recoveredFocus = await _recoverExpiredFocusIfNeeded();
+      final recurringChanged = _normalizeRecurringTasks();
+      if (recoveredFocus || recurringChanged) {
+        await save();
+      }
       notifyListeners();
     } catch (_) {
       // Keep current in-memory state if the native refresh fails.
@@ -91,7 +98,7 @@ class AppState extends ChangeNotifier {
     String? raw = await NativeBridge.loadData();
     raw ??= await _prefs.getString('ritmo_data_flutter');
     if (raw == null || raw.trim().isEmpty) {
-      data = _seed();
+      data = RitmoData();
       return;
     }
     try {
@@ -101,7 +108,10 @@ class AppState extends ChangeNotifier {
       _sanitize();
     } catch (e) {
       await _prefs.setString('ritmo_data_corrupt_backup_flutter', raw);
-      data = _seed();
+      throw FormatException(
+        'Não foi possível ler os dados locais. Um backup foi preservado para recuperação.',
+        e,
+      );
     }
   }
 
@@ -163,17 +173,70 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<bool> _recoverExpiredFocusIfNeeded() async {
+    if (!focusActive || focusEndAt <= 0 || focusRemainingSeconds > 0) {
+      return false;
+    }
+    if (focusEndAt > DateTime.now().millisecondsSinceEpoch) return false;
+
+    final exists = data.focusSessions.any(
+      (session) =>
+          session.startedAt == focusStartedAt &&
+          session.taskId == focusTaskId &&
+          session.title == focusTitle,
+    );
+    if (!exists && focusPlannedMinutes > 0) {
+      data.focusSessions.add(FocusSession(
+        id: DateTime.now().microsecondsSinceEpoch,
+        taskId: focusTaskId,
+        title: focusTitle,
+        date: today,
+        mode: focusMode,
+        plannedMinutes: focusPlannedMinutes,
+        actualMinutes: focusPlannedMinutes,
+        startedAt: focusStartedAt,
+      ));
+    }
+
+    focusActive = false;
+    focusRunning = false;
+    focusRemainingSeconds = 0;
+    focusEndAt = 0;
+    await NativeBridge.stopFocus();
+    return true;
+  }
+
   void _sanitize() {
     for (final task in data.tasks) {
       if (task.title.trim().isEmpty) task.title = 'Tarefa';
       if (task.date.length != 10) task.date = today;
       if (task.deadline.length != 10) task.deadline = task.date;
-      if (task.minutes < 0) task.minutes = 0;
+      task.minutes = task.minutes.clamp(0, 1440).toInt();
+      if (!const {'todo', 'doing', 'done'}.contains(task.status)) task.status = 'todo';
+      if (!const {'auto', 'high', 'medium', 'low'}.contains(task.priority)) task.priority = 'low';
+      if (!const {'none', 'daily', 'weekdays', 'weekly', 'monthly'}.contains(task.recurrence)) task.recurrence = 'none';
+      if (!const {'low', 'medium', 'high'}.contains(task.energy)) task.energy = 'medium';
+      if (!const {'any', 'morning', 'afternoon', 'evening'}.contains(task.preferredPeriod)) {
+        task.preferredPeriod = 'any';
+      }
+      if (task.time.isNotEmpty && !RegExp(r'^([01]\d|2[0-3]):[0-5]\d$').hasMatch(task.time)) {
+        task.time = '';
+      }
+      if (task.inbox) {
+        task.time = '';
+        task.reminderMinutes = -1;
+      }
     }
     for (final routine in data.routines) {
       if (routine.title.trim().isEmpty) routine.title = 'Hábito';
       if (routine.startDate.length != 10) routine.startDate = today;
-      if (routine.minutes < 0) routine.minutes = 0;
+      routine.minutes = routine.minutes.clamp(0, 1440).toInt();
+      if (!const {'daily', 'weekdays', 'weekly', 'custom'}.contains(routine.frequency)) {
+        routine.frequency = 'daily';
+      }
+      if (routine.time.isNotEmpty && !RegExp(r'^([01]\d|2[0-3]):[0-5]\d$').hasMatch(routine.time)) {
+        routine.time = '';
+      }
     }
   }
 
@@ -276,11 +339,15 @@ class AppState extends ChangeNotifier {
     );
   }
 
-  Future<void> save({bool syncReminders = true}) async {
+  Future<void> save({bool syncReminders = true}) {
     final raw = jsonEncode(data.toJson());
-    await NativeBridge.saveData(raw);
-    await _prefs.setString('ritmo_data_flutter', raw);
-    if (syncReminders) await NativeBridge.syncReminders();
+    final operation = _saveChain.then((_) async {
+      await NativeBridge.saveData(raw);
+      await _prefs.setString('ritmo_data_flutter', raw);
+      if (syncReminders) await NativeBridge.syncReminders();
+    });
+    _saveChain = operation.catchError((Object _) {});
+    return operation;
   }
 
   Future<void> saveSettings() async {
@@ -344,7 +411,7 @@ class AppState extends ChangeNotifier {
   }
 
   List<TaskItem> tasksOn(String date) {
-    final list = data.tasks.where((e) => e.date == date).toList();
+    final list = data.tasks.where((e) => !e.inbox && e.date == date).toList();
     list.sort((a, b) {
       if (a.status == 'done' && b.status != 'done') return 1;
       if (a.status != 'done' && b.status == 'done') return -1;
@@ -375,9 +442,11 @@ class AppState extends ChangeNotifier {
 
   String projectTitle(int id) => projectById(id)?.title ?? 'Sem projeto';
 
-  int taskCountOn(String date) => data.tasks.where((e) => e.date == date).length;
-  int doneCountOn(String date) =>
-      data.tasks.where((e) => e.date == date && e.status == 'done').length;
+  int taskCountOn(String date) =>
+      data.tasks.where((e) => !e.inbox && e.date == date).length;
+  int doneCountOn(String date) => data.tasks
+      .where((e) => !e.inbox && e.date == date && e.status == 'done')
+      .length;
   int completionPercentOn(String date) {
     final total = taskCountOn(date);
     return total == 0 ? 0 : (doneCountOn(date) * 100 / total).round();
@@ -404,8 +473,9 @@ class AppState extends ChangeNotifier {
       .where((e) => e.date == date)
       .fold(0, (sum, e) => sum + e.actualMinutes);
 
-  int plannedMinutesOn(String date) =>
-      data.tasks.where((e) => e.date == date).fold(0, (sum, e) => sum + e.minutes);
+  int plannedMinutesOn(String date) => data.tasks
+      .where((e) => !e.inbox && e.date == date)
+      .fold(0, (sum, e) => sum + e.minutes);
 
   int bestRoutineStreak() {
     var best = 0;
@@ -416,7 +486,7 @@ class AppState extends ChangeNotifier {
   }
 
   int overdueCount() => data.tasks
-      .where((e) => e.status != 'done' && e.date.compareTo(today) < 0)
+      .where((e) => !e.inbox && e.status != 'done' && e.date.compareTo(today) < 0)
       .length;
 
   int totalCompletedLast7() {
@@ -469,25 +539,32 @@ class AppState extends ChangeNotifier {
       }
     }
     notifyListeners();
-    await save();
+    await save(syncReminders: false);
+    await NativeBridge.syncTaskReminder(task.id);
   }
 
   Future<void> setTaskStatus(TaskItem task, String status) async {
     final wasDone = task.status == 'done';
     task.status = status;
     if (!wasDone && status == 'done') {
-      data.completions.add(CompletionItem(
-        taskId: task.id,
-        title: task.title,
-        date: task.date,
-        category: task.category,
-        minutes: task.minutes,
-      ));
+      final exists = data.completions.any(
+        (e) => e.taskId == task.id && e.date == task.date,
+      );
+      if (!exists) {
+        data.completions.add(CompletionItem(
+          taskId: task.id,
+          title: task.title,
+          date: task.date,
+          category: task.category,
+          minutes: task.minutes,
+        ));
+      }
     } else if (wasDone && status != 'done') {
       data.completions.removeWhere((e) => e.taskId == task.id && e.date == task.date);
     }
     notifyListeners();
-    await save();
+    await save(syncReminders: false);
+    await NativeBridge.syncTaskReminder(task.id);
   }
 
   Future<void> addOrUpdateTask(TaskItem task) async {
@@ -498,14 +575,16 @@ class AppState extends ChangeNotifier {
       data.tasks.add(task);
     }
     notifyListeners();
-    await save();
+    await save(syncReminders: false);
+    await NativeBridge.syncTaskReminder(task.id);
   }
 
   Future<void> deleteTask(TaskItem task) async {
     data.tasks.removeWhere((e) => e.id == task.id);
     data.completions.removeWhere((e) => e.taskId == task.id);
     notifyListeners();
-    await save();
+    await save(syncReminders: false);
+    await NativeBridge.syncTaskReminder(task.id);
   }
 
   Future<void> toggleRoutine(RoutineItem routine, String date) async {
@@ -516,7 +595,8 @@ class AppState extends ChangeNotifier {
       routine.doneDates.add(date);
     }
     notifyListeners();
-    await save();
+    await save(syncReminders: false);
+    await NativeBridge.syncRoutineReminder(routine.id);
   }
 
   Future<void> addOrUpdateRoutine(RoutineItem routine) async {
@@ -527,33 +607,35 @@ class AppState extends ChangeNotifier {
       data.routines.add(routine);
     }
     notifyListeners();
-    await save();
+    await save(syncReminders: false);
+    await NativeBridge.syncRoutineReminder(routine.id);
   }
 
   Future<void> deleteRoutine(RoutineItem routine) async {
     data.routines.removeWhere((e) => e.id == routine.id);
     notifyListeners();
-    await save();
+    await save(syncReminders: false);
+    await NativeBridge.syncRoutineReminder(routine.id);
   }
 
   Future<void> addOrUpdateGoal(GoalItem goal) async {
     final index = data.goals.indexWhere((e) => e.id == goal.id);
     if (index >= 0) data.goals[index] = goal; else data.goals.add(goal);
     notifyListeners();
-    await save();
+    await save(syncReminders: false);
   }
 
   Future<void> deleteGoal(GoalItem goal) async {
     data.goals.removeWhere((e) => e.id == goal.id);
     notifyListeners();
-    await save();
+    await save(syncReminders: false);
   }
 
   Future<void> addOrUpdateProject(ProjectItem project) async {
     final index = data.projects.indexWhere((e) => e.id == project.id);
     if (index >= 0) data.projects[index] = project; else data.projects.add(project);
     notifyListeners();
-    await save();
+    await save(syncReminders: false);
   }
 
   Future<void> deleteProject(ProjectItem project) async {
@@ -562,7 +644,7 @@ class AppState extends ChangeNotifier {
       if (task.projectId == project.id) task.projectId = 0;
     }
     notifyListeners();
-    await save();
+    await save(syncReminders: false);
   }
 
   int projectProgress(ProjectItem p) {
@@ -629,10 +711,10 @@ class AppState extends ChangeNotifier {
     return restored;
   }
 
-  int replanOverdueFlexible({bool notify = true}) {
+  Future<int> replanOverdueFlexible({bool notify = true}) async {
     var moved = 0;
     for (final task in data.tasks) {
-      if (task.status == 'done' || !task.flexible || task.recurrence != 'none') continue;
+      if (task.inbox || task.status == 'done' || !task.flexible || task.recurrence != 'none') continue;
       if (task.date.compareTo(today) >= 0) continue;
       task.date = today;
       if (task.deadline.compareTo(today) < 0) task.deadline = today;
@@ -640,12 +722,12 @@ class AppState extends ChangeNotifier {
     }
     if (moved > 0) {
       if (notify) notifyListeners();
-      save();
+      await save();
     }
     return moved;
   }
 
-  void _normalizeRecurringTasks() {
+  bool _normalizeRecurringTasks() {
     var changed = false;
     for (final task in data.tasks) {
       if (task.recurrence == 'none' || task.status != 'done') continue;
@@ -660,7 +742,7 @@ class AppState extends ChangeNotifier {
       task.status = 'todo';
       changed = true;
     }
-    if (changed) save(syncReminders: false);
+    return changed;
   }
 
   String _nextOccurrence(String iso, String recurrence) {
@@ -780,7 +862,7 @@ class AppState extends ChangeNotifier {
     focusEndAt = 0;
     notifyListeners();
     await NativeBridge.stopFocus();
-    await save();
+    await save(syncReminders: !completeTask ? false : focusTaskId != 0);
   }
 
   Future<void> cancelFocus() async {

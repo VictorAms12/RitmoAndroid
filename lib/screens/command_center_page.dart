@@ -214,10 +214,23 @@ class _InboxTab extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 18),
-        SectionHeader(
-          title: 'Caixa de entrada',
-          actionLabel: inbox.isEmpty ? null : '${inbox.length} item${inbox.length == 1 ? '' : 's'}',
-          onAction: inbox.isEmpty ? null : () {},
+        Padding(
+          padding: const EdgeInsets.fromLTRB(2, 8, 2, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Caixa de entrada',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              if (inbox.isNotEmpty)
+                Text(
+                  '${inbox.length} item${inbox.length == 1 ? '' : 's'}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+            ],
+          ),
         ),
         if (inbox.isEmpty)
           const EmptyState(
@@ -308,10 +321,11 @@ class _SearchTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final q = query.trim().toLowerCase();
+    final projectTitles = {for (final p in state.data.projects) p.id: p.title};
     final tasks = q.isEmpty
         ? <TaskItem>[]
         : state.data.tasks.where((e) {
-            final project = state.projectTitle(e.projectId);
+            final project = projectTitles[e.projectId] ?? 'Sem projeto';
             return '${e.title} ${e.description} ${e.category} $project'.toLowerCase().contains(q);
           }).toList();
     final routines = q.isEmpty
@@ -436,7 +450,15 @@ class _TimelineTab extends StatelessWidget {
       return a.time.compareTo(b.time);
     });
 
-    final next = items.where((e) => !e.done && e.time.isNotEmpty).cast<_TimelineItem?>().firstOrNull;
+    final now = TimeOfDay.now();
+    final nowMinutes = now.hour * 60 + now.minute;
+    final next = items
+        .where((e) =>
+            !e.done &&
+            e.time.isNotEmpty &&
+            _timeMinutes(e.time) >= nowMinutes)
+        .cast<_TimelineItem?>()
+        .firstOrNull;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
@@ -604,6 +626,15 @@ class _TimelineTile extends StatelessWidget {
       ),
     );
   }
+}
+
+int _timeMinutes(String value) {
+  final parts = value.split(':');
+  if (parts.length != 2) return -1;
+  final hour = int.tryParse(parts[0]);
+  final minute = int.tryParse(parts[1]);
+  if (hour == null || minute == null) return -1;
+  return hour * 60 + minute;
 }
 
 String _dateLabel(String iso) {

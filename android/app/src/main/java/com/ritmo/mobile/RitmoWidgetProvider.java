@@ -25,7 +25,7 @@ public class RitmoWidgetProvider extends AppWidgetProvider {
         Store store = new Store(context);
         String today = Store.today();
         int total = store.taskCountOn(today);
-        int done = store.completedOn(today);
+        int done = store.doneTasksOn(today);
         int pct = total == 0 ? 0 : Math.round(done * 100f / total);
         int pending = Math.max(0, total - done);
         Store.Routine best = store.bestRoutineByStreak();

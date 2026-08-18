@@ -11,8 +11,9 @@ import java.util.Locale;
 
 public class ReminderScheduler {
     public static void schedule(Context context, Store.Task task) {
+        if (task == null) return;
         cancel(context, task.id);
-        if (task.reminderMinutes < 0 || task.time == null || task.time.trim().isEmpty()) return;
+        if ("done".equals(task.status) || task.inbox || task.reminderMinutes < 0 || task.time == null || task.time.trim().isEmpty()) return;
         try {
             Date due = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).parse(task.date + " " + task.time);
             if (due == null) return;
@@ -23,7 +24,7 @@ public class ReminderScheduler {
     }
 
     public static void scheduleAt(Context context, Store.Task task, long when) {
-        if (when <= System.currentTimeMillis()) return;
+        if (task == null || "done".equals(task.status) || task.inbox || when <= System.currentTimeMillis()) return;
         AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;
         am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pending(context, task.id, task.title));

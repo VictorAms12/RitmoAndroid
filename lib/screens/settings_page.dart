@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
 import '../core/native_bridge.dart';
@@ -45,12 +47,16 @@ class _SettingsPageState extends State<SettingsPage> {
     final capacityHours = int.tryParse(_capacity.text) ?? 6;
     final start = (int.tryParse(_startHour.text) ?? 8).clamp(0, 23).toInt();
     final end = (int.tryParse(_endHour.text) ?? 22).clamp(start + 1, 24).toInt();
+    final capacity = capacityHours.clamp(1, 16).toInt();
     await widget.state.setPlannerSettings(
       startHour: start,
       endHour: end,
-      capacityMinutes: capacityHours.clamp(1, 16).toInt() * 60,
+      capacityMinutes: capacity * 60,
       includeWeekend: widget.state.plannerIncludeWeekend,
     );
+    _capacity.text = '$capacity';
+    _startHour.text = '$start';
+    _endHour.text = '$end';
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -153,6 +159,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   child: TextField(
                     controller: _capacity,
                     keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: const InputDecoration(
                       labelText: 'Capacidade (h/dia)',
                       prefixIcon: Icon(Icons.battery_5_bar_rounded),
@@ -164,6 +171,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   child: TextField(
                     controller: _startHour,
                     keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: const InputDecoration(
                       labelText: 'Começa às',
                       suffixText: 'h',
@@ -175,6 +183,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   child: TextField(
                     controller: _endHour,
                     keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: const InputDecoration(
                       labelText: 'Termina às',
                       suffixText: 'h',
@@ -232,32 +241,48 @@ class _SettingsPageState extends State<SettingsPage> {
           ],
         ),
         const SizedBox(height: 12),
-        _SettingsCard(
-          title: 'Notificações',
-          icon: Icons.notifications_none_rounded,
-          children: [
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.notifications_active_outlined),
-              title: const Text('Permissão de notificações'),
-              subtitle: const Text(
-                'Necessária para lembretes e o cronômetro de foco em background.',
+        if (defaultTargetPlatform == TargetPlatform.android)
+          _SettingsCard(
+            title: 'Notificações',
+            icon: Icons.notifications_none_rounded,
+            children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.notifications_active_outlined),
+                title: const Text('Permissão de notificações'),
+                subtitle: const Text(
+                  'Necessária para lembretes e o cronômetro de foco em background.',
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () async {
+                  await NativeBridge.requestNotificationPermission();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Solicitação de permissão enviada.'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                },
               ),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () async {
-                await NativeBridge.requestNotificationPermission();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Solicitação enviada ao Android.'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              },
-            ),
-          ],
-        ),
+            ],
+          )
+        else
+          const _SettingsCard(
+            title: 'Notificações',
+            icon: Icons.notifications_none_rounded,
+            children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.desktop_windows_outlined),
+                title: Text('Lembretes no Windows'),
+                subtitle: Text(
+                  'A versão portátil mantém os dados e recursos de produtividade, mas os lembretes nativos ainda são exclusivos do Android.',
+                ),
+              ),
+            ],
+          ),
         const SizedBox(height: 12),
         _SettingsCard(
           title: 'Sobre',
@@ -266,7 +291,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.flutter_dash_rounded),
-              title: const Text('Ritmo 3.4.0'),
+              title: const Text('Ritmo 3.4.1'),
               subtitle: const Text(
                 'Android + Windows · Inbox, busca global, timeline e Smart Planner 2.0 · dados locais.',
               ),

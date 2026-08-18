@@ -47,7 +47,13 @@ public class ReminderReceiver extends BroadcastReceiver {
             return;
         }
 
-        String title = intent.getStringExtra("title");
+        Store currentStore = new Store(context);
+        Store.Task currentTask = currentStore.findTask(taskId);
+        if (currentTask == null || "done".equals(currentTask.status) || currentTask.inbox) {
+            cancelNotification(context, notificationId);
+            return;
+        }
+        String title = currentTask.title;
         if (title == null || title.trim().isEmpty()) title = "Você tem uma tarefa agora";
         ensureChannel(context);
 
@@ -94,8 +100,13 @@ public class ReminderReceiver extends BroadcastReceiver {
             return;
         }
 
-        String title = intent.getStringExtra("title");
-        if (title == null || title.trim().isEmpty()) title = routine == null ? "Hora da sua rotina" : routine.title;
+        if (routine == null || !routine.dueOn(Store.today()) || routine.doneOn(Store.today())) {
+            cancelNotification(context, notificationId);
+            if (routine != null) RoutineReminderScheduler.schedule(context, routine);
+            return;
+        }
+        String title = routine.title;
+        if (title == null || title.trim().isEmpty()) title = "Hora da sua rotina";
         ensureChannel(context);
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null) return;

@@ -9,7 +9,7 @@
 ![Android](https://img.shields.io/badge/Android-Release-3DDC84?logo=android&logoColor=white)
 ![Windows](https://img.shields.io/badge/Windows-x64-0078D4?logo=windows11&logoColor=white)
 ![Offline First](https://img.shields.io/badge/Offline--first-Local-5C6EF8)
-![Version](https://img.shields.io/badge/versão-3.4.0-8B95FF)
+![Version](https://img.shields.io/badge/versão-3.4.1-8B95FF)
 
 [![Build Android](https://github.com/VictorAms12/RitmoAndroid/actions/workflows/build-apk.yml/badge.svg)](https://github.com/VictorAms12/RitmoAndroid/actions/workflows/build-apk.yml)
 [![Build Windows](https://github.com/VictorAms12/RitmoAndroid/actions/workflows/build-windows.yml/badge.svg)](https://github.com/VictorAms12/RitmoAndroid/actions/workflows/build-windows.yml)
@@ -32,7 +32,7 @@ A proposta é organizar o ciclo de produtividade pessoal completo:
 
 Os dados permanecem armazenados localmente no dispositivo, mantendo o aplicativo funcional mesmo offline.
 
-> Versão atual: **3.4.0 — Android + Windows**
+> Versão atual: **3.4.1 — Android + Windows**
 
 ---
 
@@ -313,7 +313,7 @@ flowchart TD
     F --> G[Manter horário original]
 ```
 
-Na v3.4.0, a camada nativa Android foi alinhada ao **schema 8** para que ações realizadas pela própria notificação preservem os campos utilizados pelo Smart Planner, incluindo:
+Na v3.4.1, a camada nativa Android foi alinhada ao **schema 8** para que ações realizadas pela própria notificação preservem os campos utilizados pelo Smart Planner, incluindo:
 
 - `inbox`;
 - `energy`;
@@ -325,7 +325,7 @@ Na v3.4.0, a camada nativa Android foi alinhada ao **schema 8** para que ações
 
 ## 🖥️ Android e Windows
 
-A partir da versão 3.4.0, Android e Windows compartilham a mesma base Flutter.
+A partir da versão 3.4.1, Android e Windows compartilham a mesma base Flutter.
 
 ### Android
 
@@ -552,8 +552,8 @@ O projeto também possui workflow próprio para geração do APK assinado utiliz
 Artifact esperado:
 
 ```text
-Ritmo-v3.4.0-APK
-└── Ritmo-v3.4.0.apk
+Ritmo-v3.4.1-APK
+└── Ritmo-v3.4.1.apk
 ```
 
 ### Windows
@@ -565,8 +565,8 @@ flutter build windows --release
 Artifact esperado:
 
 ```text
-Ritmo-v3.4.0-Windows
-└── Ritmo-v3.4.0-Windows.zip
+Ritmo-v3.4.1-Windows
+└── Ritmo-v3.4.1-Windows.zip
 ```
 
 O executável depende das DLLs e da pasta `data` presentes no pacote. Para distribuição portátil, mantenha todos os arquivos juntos.
@@ -615,7 +615,7 @@ Os resultados ficam disponíveis em:
 
 ## 🔐 Dados e privacidade
 
-Na versão 3.4.0, os dados do Ritmo são armazenados localmente no dispositivo.
+Na versão 3.4.1, os dados do Ritmo são armazenados localmente no dispositivo.
 
 Isso significa que:
 
@@ -670,14 +670,14 @@ Os workflows executam análise estática antes da geração dos artifacts:
 flutter analyze --no-fatal-infos --no-fatal-warnings
 ```
 
-A versão 3.4.0 possui builds automatizados e validados para **Android** e **Windows** através do GitHub Actions.
+A versão 3.4.1 possui builds automatizados e validados para **Android** e **Windows** através do GitHub Actions.
 
 ---
 
 ## 📌 Versão atual
 
 ```text
-Ritmo 3.4.0
+Ritmo 3.4.1
 versionCode: 12
 schemaVersion: 8
 Flutter: 3.44.4

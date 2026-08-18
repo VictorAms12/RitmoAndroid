@@ -55,6 +55,26 @@ class NativeBridge {
     }
   }
 
+  static Future<void> syncTaskReminder(int taskId) async {
+    try {
+      await _channel.invokeMethod<void>('syncTaskReminder', {'taskId': taskId});
+    } on PlatformException {
+      // A full sync still runs at startup and after planner operations.
+    } on MissingPluginException {
+      // No-op outside Android.
+    }
+  }
+
+  static Future<void> syncRoutineReminder(int routineId) async {
+    try {
+      await _channel.invokeMethod<void>('syncRoutineReminder', {'routineId': routineId});
+    } on PlatformException {
+      // A full sync still runs at startup and after planner operations.
+    } on MissingPluginException {
+      // No-op outside Android.
+    }
+  }
+
   static Future<Map<String, dynamic>> loadFocusState() async {
     try {
       final map =

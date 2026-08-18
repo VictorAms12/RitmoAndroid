@@ -44,8 +44,8 @@ public class FocusTimerService extends Service {
                 return;
             }
 
-            startForeground(NOTIFICATION_ID, buildRunningNotification(p));
-            handler.postDelayed(this, 1000L);
+            long delay = Math.max(500L, endAt - System.currentTimeMillis());
+            handler.postDelayed(this, delay);
         }
     };
 

@@ -76,7 +76,7 @@ public class Store {
     private void load() {
         String raw = prefs.getString(KEY_DATA, null);
         if (raw == null || raw.trim().isEmpty()) {
-            seed(); save(); return;
+            return;
         }
         try {
             JSONObject root = new JSONObject(raw);
@@ -230,7 +230,7 @@ public class Store {
             String next = task.date; int guard = 0;
             do { next = nextOccurrence(next, task.recurrence); guard++; }
             while (next.compareTo(today) < 0 && guard < 370);
-            task.date = next; task.status = "todo"; changed = true;
+            task.date = next; task.deadline = next; task.status = "todo"; changed = true;
         }
         if (changed) save();
     }
@@ -238,7 +238,13 @@ public class Store {
     public static String nextOccurrence(String iso, String recurrence) {
         Calendar c = Calendar.getInstance(); c.setTime(parse(iso));
         if ("weekly".equals(recurrence)) c.add(Calendar.DAY_OF_MONTH, 7);
-        else if ("monthly".equals(recurrence)) c.add(Calendar.MONTH, 1);
+        else if ("monthly".equals(recurrence)) {
+            int day = c.get(Calendar.DAY_OF_MONTH);
+            c.set(Calendar.DAY_OF_MONTH, 1);
+            c.add(Calendar.MONTH, 1);
+            int maxDay = c.getActualMaximum(Calendar.DAY_OF_MONTH);
+            c.set(Calendar.DAY_OF_MONTH, Math.min(day, maxDay));
+        }
         else {
             c.add(Calendar.DAY_OF_MONTH, 1);
             if ("weekdays".equals(recurrence)) {
@@ -250,12 +256,12 @@ public class Store {
 
     public int completedOn(String iso) { int total = 0; for (Completion c : completions) if (iso.equals(c.date)) total++; return total; }
     public int completedMinutesOn(String iso) { int total = 0; for (Completion c : completions) if (iso.equals(c.date)) total += c.minutes; return total; }
-    public int plannedMinutesOn(String iso) { int total = 0; for (Task t : tasks) if (iso.equals(t.date)) total += t.minutes; return total; }
-    public int taskCountOn(String iso) { int total = 0; for (Task t : tasks) if (iso.equals(t.date)) total++; return total; }
+    public int plannedMinutesOn(String iso) { int total = 0; for (Task t : tasks) if (!t.inbox && iso.equals(t.date)) total += t.minutes; return total; }
+    public int taskCountOn(String iso) { int total = 0; for (Task t : tasks) if (!t.inbox && iso.equals(t.date)) total++; return total; }
 
     public int completionPercentOn(String iso) {
         int total = 0, done = 0;
-        for (Task t : tasks) if (iso.equals(t.date)) { total++; if ("done".equals(t.status)) done++; }
+        for (Task t : tasks) if (!t.inbox && iso.equals(t.date)) { total++; if ("done".equals(t.status)) done++; }
         return total == 0 ? 0 : Math.round(done * 100f / total);
     }
 
@@ -321,7 +327,7 @@ public class Store {
 
     public int overdueOpenCount() {
         int total = 0;
-        for (Task t : tasks) if (!"done".equals(t.status) && t.date.compareTo(today()) < 0) total++;
+        for (Task t : tasks) if (!t.inbox && !"done".equals(t.status) && t.date.compareTo(today()) < 0) total++;
         return total;
     }
 
@@ -394,7 +400,7 @@ public class Store {
         int moved = 0;
         String today = today();
         for (Task t : tasks) {
-            if ("done".equals(t.status) || !t.flexible || !"none".equals(t.recurrence)) continue;
+            if (t.inbox || "done".equals(t.status) || !t.flexible || !"none".equals(t.recurrence)) continue;
             if (t.date.compareTo(today) >= 0) continue;
             String due = (t.deadline == null || t.deadline.length() != 10) ? today : t.deadline;
             if (due.compareTo(today) < 0) due = today;
@@ -487,13 +493,13 @@ public class Store {
 
     public int openTasksOn(String date) {
         int total = 0;
-        for (Task t : tasks) if (date.equals(t.date) && !"done".equals(t.status)) total++;
+        for (Task t : tasks) if (!t.inbox && date.equals(t.date) && !"done".equals(t.status)) total++;
         return total;
     }
 
     public int doneTasksOn(String date) {
         int total = 0;
-        for (Task t : tasks) if (date.equals(t.date) && "done".equals(t.status)) total++;
+        for (Task t : tasks) if (!t.inbox && date.equals(t.date) && "done".equals(t.status)) total++;
         return total;
     }
 
@@ -505,7 +511,7 @@ public class Store {
     public int moveFlexibleOpenTasks(String fromDate, String toDate) {
         int moved = 0;
         for (Task t : tasks) {
-            if (!fromDate.equals(t.date) || "done".equals(t.status)) continue;
+            if (t.inbox || !fromDate.equals(t.date) || "done".equals(t.status)) continue;
             if (!t.flexible || !"none".equals(t.recurrence)) continue;
             t.date = toDate;
             if (t.deadline == null || t.deadline.length() != 10 || t.deadline.compareTo(toDate) < 0) t.deadline = toDate;
@@ -621,7 +627,7 @@ public class Store {
         public final List<String> doneDates = new ArrayList<>();
 
         public Routine(long id, String title, String detail, String frequency, int minutes, String startDate) {
-            this(id, title, detail, frequency, minutes, startDate, "", "Pessoal", "violet", -1, 0);
+            this(id, title, detail, frequency, minutes, startDate, "", "Pessoal", "indigo", -1, 0);
         }
 
         public Routine(long id, String title, String detail, String frequency, int minutes, String startDate,
@@ -639,7 +645,7 @@ public class Store {
             this.startDate = startDate;
             this.time = time == null ? "" : time;
             this.category = category == null || category.trim().isEmpty() ? "Pessoal" : category;
-            this.accent = accent == null || accent.trim().isEmpty() ? "violet" : accent;
+            this.accent = accent == null || accent.trim().isEmpty() ? "indigo" : accent;
             this.reminderMinutes = reminderMinutes;
             this.daysMask = daysMask;
         }
@@ -648,6 +654,7 @@ public class Store {
         public void toggle(String date) { if (doneDates.contains(date)) doneDates.remove(date); else doneDates.add(date); }
 
         public boolean dueOn(String date) {
+            if (startDate != null && startDate.length() == 10 && date.compareTo(startDate) < 0) return false;
             Calendar c = Calendar.getInstance(); c.setTime(parse(date)); int dow = c.get(Calendar.DAY_OF_WEEK);
             if ("custom".equals(frequency)) {
                 int bit = 1 << (dow - 1);
@@ -690,7 +697,7 @@ public class Store {
                     o.optString("startDate", today()),
                     o.optString("time", ""),
                     o.optString("category", "Pessoal"),
-                    o.optString("accent", "violet"),
+                    o.optString("accent", "indigo"),
                     o.optInt("reminderMinutes", -1),
                     o.optInt("daysMask", 0)
             );

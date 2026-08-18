@@ -44,7 +44,7 @@ class _FocusPageState extends State<FocusPage> {
     if (widget.state.focusActive) {
       _minutes = widget.state.focusPlannedMinutes;
       _mode = widget.state.focusMode;
-      _startTicker();
+      if (widget.state.focusRunning) _startTicker();
     }
   }
 
@@ -56,7 +56,7 @@ class _FocusPageState extends State<FocusPage> {
 
   void _startTicker() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       final remaining = widget.state.currentFocusRemainingSeconds();
       if (widget.state.focusRunning && remaining <= 0 && !_finishing) {
@@ -156,10 +156,13 @@ class _FocusPageState extends State<FocusPage> {
                   progress: progress,
                   running: state.focusRunning,
                   completeTask: _completeTask,
+                  hasLinkedTask: state.focusTaskId != 0,
+                  reduceMotion: state.reduceMotion,
                   onCompleteTaskChanged: (v) => setState(() => _completeTask = v),
                   onPauseResume: () async {
                     if (state.focusRunning) {
                       await state.pauseFocus(remaining);
+                      _timer?.cancel();
                     } else {
                       await state.resumeFocus();
                       _startTicker();
@@ -329,6 +332,8 @@ class _ActiveFocus extends StatelessWidget {
   final double progress;
   final bool running;
   final bool completeTask;
+  final bool hasLinkedTask;
+  final bool reduceMotion;
   final ValueChanged<bool> onCompleteTaskChanged;
   final VoidCallback onPauseResume;
   final VoidCallback onFinish;
@@ -341,6 +346,8 @@ class _ActiveFocus extends StatelessWidget {
     required this.progress,
     required this.running,
     required this.completeTask,
+    required this.hasLinkedTask,
+    required this.reduceMotion,
     required this.onCompleteTaskChanged,
     required this.onPauseResume,
     required this.onFinish,
@@ -374,7 +381,7 @@ class _ActiveFocus extends StatelessWidget {
         Center(
           child: TweenAnimationBuilder<double>(
             tween: Tween(begin: 0, end: progress),
-            duration: const Duration(milliseconds: 450),
+            duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 240),
             curve: Curves.easeOutCubic,
             builder: (context, value, _) {
               return SizedBox(
@@ -422,14 +429,16 @@ class _ActiveFocus extends StatelessWidget {
           icon: const Icon(Icons.stop_rounded),
           label: const Text('Finalizar e registrar'),
         ),
-        const SizedBox(height: 8),
-        CheckboxListTile(
-          value: completeTask,
-          onChanged: (v) => onCompleteTaskChanged(v ?? false),
-          title: const Text('Concluir tarefa ao finalizar'),
-          contentPadding: EdgeInsets.zero,
-          controlAffinity: ListTileControlAffinity.leading,
-        ),
+        if (hasLinkedTask) ...[
+          const SizedBox(height: 8),
+          CheckboxListTile(
+            value: completeTask,
+            onChanged: (v) => onCompleteTaskChanged(v ?? false),
+            title: const Text('Concluir tarefa ao finalizar'),
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+          ),
+        ],
       ],
     );
   }
@@ -466,5 +475,7 @@ class _FocusRingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _FocusRingPainter oldDelegate) =>
-      oldDelegate.value != value || oldDelegate.color != color;
+      oldDelegate.value != value ||
+      oldDelegate.color != color ||
+      oldDelegate.track != track;
 }

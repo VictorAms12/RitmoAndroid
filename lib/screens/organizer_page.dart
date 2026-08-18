@@ -92,14 +92,18 @@ class _KanbanTab extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: columns.map((column) {
-          final tasks = state.data.tasks.where((e) => e.status == column.$1).toList();
+          final tasks = state.data.tasks
+              .where((e) => !e.inbox && e.status == column.$1)
+              .toList();
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: DragTarget<TaskItem>(
               onAcceptWithDetails: (details) =>
                   state.setTaskStatus(details.data, column.$1),
               builder: (context, candidates, rejected) => AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
+                duration: state.reduceMotion
+                    ? Duration.zero
+                    : const Duration(milliseconds: 180),
                 width: 280,
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(

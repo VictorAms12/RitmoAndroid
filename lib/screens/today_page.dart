@@ -311,7 +311,7 @@ class _TodayPageState extends State<TodayPage> {
                 if (visible.isEmpty)
                   EmptyState(
                     icon: Icons.spa_rounded,
-                    title: 'Nenhuma rotina para hoje',
+                    title: 'Nenhuma tarefa para mostrar',
                     message:
                         'Que tal descansar ou criar uma tarefa pequena para manter o ritmo?',
                     actionLabel: 'Adicionar',

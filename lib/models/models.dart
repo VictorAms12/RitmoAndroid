@@ -189,6 +189,7 @@ class RoutineItem {
   bool doneOn(String date) => doneDates.contains(date);
 
   bool dueOn(String date) {
+    if (date.compareTo(startDate) < 0) return false;
     final d = parseIso(date);
     if (frequency == 'custom') {
       final javaDow = d.weekday == DateTime.sunday ? 1 : d.weekday + 1;
