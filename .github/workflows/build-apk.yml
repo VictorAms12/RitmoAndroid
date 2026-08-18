@@ -36,8 +36,8 @@ jobs:
         run: |
           cat > android/local.properties <<EOF2
           flutter.sdk=$FLUTTER_ROOT
-          flutter.versionCode=13
-          flutter.versionName=3.4.1
+          flutter.versionCode=14
+          flutter.versionName=3.4.2
           EOF2
       - name: Setup Gradle 8.11.1
         uses: gradle/actions/setup-gradle@v4
@@ -55,11 +55,11 @@ jobs:
         run: |
           APK="$(find build -type f -name 'app-release.apk' | head -n 1)"
           test -n "$APK"
-          cp "$APK" Ritmo-v3.4.1.apk
+          cp "$APK" Ritmo-v3.4.2.apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Ritmo-v3.4.1-APK
-          path: Ritmo-v3.4.1.apk
+          name: Ritmo-v3.4.2-APK
+          path: Ritmo-v3.4.2.apk
           if-no-files-found: error
           retention-days: 30
