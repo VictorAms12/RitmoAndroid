@@ -42,39 +42,61 @@ jobs:
         with:
           gradle-version: "8.11.1"
 
-      - name: Apply final polish
-        run: |
-          python .github/scripts/final_polish_3_4_3.py
-          python .github/scripts/post_polish_3_4_3.py
-
-      - name: Format Dart
-        run: dart format lib test
-
-      - name: Fetch packages
-        run: flutter pub get
-
-      - name: Configure Android local.properties
+      - name: Apply and validate final polish
         shell: bash
         run: |
-          cat > android/local.properties <<EOF2
+          set +e
+          rm -f /tmp/ritmo-audit.log
+          {
+            echo '=== PATCH ==='
+            python .github/scripts/final_polish_3_4_3.py
+            PATCH_RC=$?
+            if [ $PATCH_RC -ne 0 ]; then exit $PATCH_RC; fi
+            python .github/scripts/post_polish_3_4_3.py
+            PATCH_RC=$?
+            if [ $PATCH_RC -ne 0 ]; then exit $PATCH_RC; fi
+            dart format lib test
+            FORMAT_RC=$?
+            if [ $FORMAT_RC -ne 0 ]; then exit $FORMAT_RC; fi
+            flutter pub get
+            PUB_RC=$?
+            if [ $PUB_RC -ne 0 ]; then exit $PUB_RC; fi
+            cat > android/local.properties <<EOF2
           flutter.sdk=$FLUTTER_ROOT
           flutter.versionCode=15
           flutter.versionName=3.4.3
           EOF2
-
-      - name: Analyze
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings
-
-      - name: Test
-        run: flutter test
-
-      - name: Compile Android debug
-        working-directory: android
-        run: gradle --no-daemon assembleDebug
-
-      - name: Commit validated changes
-        shell: bash
-        run: |
+            echo '=== ANALYZE ==='
+            flutter analyze --no-fatal-infos --no-fatal-warnings
+            ANALYZE_RC=$?
+            if [ $ANALYZE_RC -ne 0 ]; then exit $ANALYZE_RC; fi
+            echo '=== TEST ==='
+            flutter test
+            TEST_RC=$?
+            if [ $TEST_RC -ne 0 ]; then exit $TEST_RC; fi
+            echo '=== ANDROID ==='
+            (cd android && gradle --no-daemon assembleDebug)
+            BUILD_RC=$?
+            exit $BUILD_RC
+          } > /tmp/ritmo-audit.log 2>&1
+          RC=$?
+          if [ $RC -ne 0 ]; then
+            {
+              echo '# Ritmo temporary audit failure'
+              echo
+              echo "Exit code: $RC"
+              echo
+              echo '```text'
+              tail -n 120 /tmp/ritmo-audit.log
+              echo '```'
+            } > AUDIT_FAILURE.md
+            git config user.name "Ritmo Automation"
+            git config user.email "actions@users.noreply.github.com"
+            git add AUDIT_FAILURE.md
+            git commit -m "chore: capture Ritmo 3.4.3 audit failure [skip ci]"
+            git push origin main
+            exit $RC
+          fi
           git config user.name "Ritmo Automation"
           git config user.email "actions@users.noreply.github.com"
           git add -A
