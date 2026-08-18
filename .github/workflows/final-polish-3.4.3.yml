@@ -37,14 +37,30 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
       - name: Apply final polish
-        run: python .github/scripts/final_polish_3_4_3.py
+        run: |
+          python .github/scripts/final_polish_3_4_3.py
+          python .github/scripts/post_polish_3_4_3.py
 
       - name: Format Dart
         run: dart format lib test
 
       - name: Fetch packages
         run: flutter pub get
+
+      - name: Configure Android local.properties
+        shell: bash
+        run: |
+          cat > android/local.properties <<EOF2
+          flutter.sdk=$FLUTTER_ROOT
+          flutter.versionCode=15
+          flutter.versionName=3.4.3
+          EOF2
 
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
@@ -53,7 +69,8 @@ jobs:
         run: flutter test
 
       - name: Compile Android debug
-        run: flutter build apk --debug
+        working-directory: android
+        run: gradle --no-daemon assembleDebug
 
       - name: Commit validated changes
         shell: bash
@@ -61,5 +78,10 @@ jobs:
           git config user.name "Ritmo Automation"
           git config user.email "actions@users.noreply.github.com"
           git add -A
+          git reset -- android/local.properties
+          git reset -- .github/workflows
+          git reset -- .github/scripts/final_polish_3_4_3.py
+          git reset -- .github/scripts/post_polish_3_4_3.py
+          git reset -- .github/scripts/final_tidy_3_4_2.py
           git commit -m "perf: Ritmo 3.4.3 final reliability and speed polish"
           git push origin main
