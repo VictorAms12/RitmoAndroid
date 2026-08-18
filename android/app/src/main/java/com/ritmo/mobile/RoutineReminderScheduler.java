@@ -6,7 +6,6 @@ import android.content.Context;
 import android.content.Intent;
 
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 
@@ -20,22 +19,36 @@ public final class RoutineReminderScheduler {
         try {
             String date = nextDueDate(routine);
             if (date == null) return;
-            Date due = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).parse(date + " " + routine.time);
-            if (due == null) return;
-            long when = due.getTime() - routine.reminderMinutes * 60_000L;
+            long when = reminderTime(date, routine);
             if (when <= System.currentTimeMillis()) {
                 date = nextDueDateAfter(routine, date);
                 if (date == null) return;
-                due = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).parse(date + " " + routine.time);
-                if (due == null) return;
-                when = due.getTime() - routine.reminderMinutes * 60_000L;
+                when = reminderTime(date, routine);
             }
-            scheduleAt(context, routine, when);
+            if (when <= System.currentTimeMillis()) return;
+
+            // schedule() may intentionally schedule the next occurrence after the
+            // habit was completed today. Do not apply the snooze-only "done today"
+            // guard here, otherwise tomorrow's reminder silently disappears.
+            schedulePending(context, routine, when);
         } catch (Exception ignored) { }
     }
 
+    private static long reminderTime(String date, Store.Routine routine) throws Exception {
+        SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US);
+        parser.setLenient(false);
+        Date due = parser.parse(date + " " + routine.time);
+        if (due == null) return 0L;
+        return due.getTime() - routine.reminderMinutes * 60_000L;
+    }
+
     public static void scheduleAt(Context context, Store.Routine routine, long when) {
+        // scheduleAt is used by the "Adiar 10 min" action for the current habit.
         if (routine == null || routine.doneOn(Store.today()) || when <= System.currentTimeMillis()) return;
+        schedulePending(context, routine, when);
+    }
+
+    private static void schedulePending(Context context, Store.Routine routine, long when) {
         AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;
         am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pending(context, routine.id, routine.title));
@@ -66,8 +79,7 @@ public final class RoutineReminderScheduler {
             if (!routine.dueOn(d) || routine.doneOn(d)) continue;
             if (i > 0) return d;
             try {
-                Date due = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).parse(d + " " + routine.time);
-                if (due != null && due.getTime() - routine.reminderMinutes * 60_000L > System.currentTimeMillis()) return d;
+                if (reminderTime(d, routine) > System.currentTimeMillis()) return d;
             } catch (Exception ignored) { }
         }
         return null;
