@@ -13,18 +13,37 @@ public class ReminderScheduler {
     public static void schedule(Context context, Store.Task task) {
         if (task == null) return;
         cancel(context, task.id);
-        if ("done".equals(task.status) || task.inbox || task.reminderMinutes < 0 || task.time == null || task.time.trim().isEmpty()) return;
+        if (task.inbox || task.reminderMinutes < 0 || task.time == null || task.time.trim().isEmpty()) return;
+        if ("done".equals(task.status) && "none".equals(task.recurrence)) return;
         try {
-            Date due = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).parse(task.date + " " + task.time);
-            if (due == null) return;
-            long when = due.getTime() - task.reminderMinutes * 60_000L;
+            String date = task.date;
+            if ("done".equals(task.status)) {
+                int guard = 0;
+                do {
+                    date = Store.nextOccurrence(date, task.recurrence);
+                    guard++;
+                } while (guard < 370 && reminderTime(date, task) <= System.currentTimeMillis());
+            }
+            long when = reminderTime(date, task);
             if (when <= System.currentTimeMillis()) return;
-            scheduleAt(context, task, when);
+            schedulePending(context, task, when);
         } catch (Exception ignored) { }
+    }
+
+    private static long reminderTime(String date, Store.Task task) throws Exception {
+        SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US);
+        parser.setLenient(false);
+        Date due = parser.parse(date + " " + task.time);
+        if (due == null) return 0L;
+        return due.getTime() - task.reminderMinutes * 60_000L;
     }
 
     public static void scheduleAt(Context context, Store.Task task, long when) {
         if (task == null || "done".equals(task.status) || task.inbox || when <= System.currentTimeMillis()) return;
+        schedulePending(context, task, when);
+    }
+
+    private static void schedulePending(Context context, Store.Task task, long when) {
         AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;
         am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pending(context, task.id, task.title));

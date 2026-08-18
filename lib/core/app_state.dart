@@ -240,105 +240,6 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  RitmoData _seed() {
-    final now = DateTime.now().microsecondsSinceEpoch;
-    final project = ProjectItem(
-      id: now + 50,
-      title: 'Projeto pessoal',
-      description: 'Organizar e executar as próximas etapas.',
-      targetDate: addDaysIso(today, 30),
-    );
-    final taskA = TaskItem(
-      id: now + 1,
-      title: 'Revisar conteúdo de Redes',
-      description: 'Revisar anotações e fazer 10 questões.',
-      date: today,
-      time: '09:00',
-      priority: 'auto',
-      minutes: 60,
-      category: 'Estudos',
-      recurrence: 'weekdays',
-      reminderMinutes: 10,
-      subtasks: [
-        Subtask(id: now + 101, title: 'Revisar anotações'),
-        Subtask(id: now + 102, title: 'Resolver 10 questões'),
-      ],
-    );
-    final taskB = TaskItem(
-      id: now + 2,
-      title: 'Organizar projeto pessoal',
-      description: 'Separar prioridades e quebrar o projeto em pequenas etapas.',
-      date: today,
-      time: '14:30',
-      priority: 'medium',
-      minutes: 90,
-      category: 'Projeto',
-      status: 'doing',
-      projectId: project.id,
-      reminderMinutes: 30,
-      flexible: true,
-      deadline: addDaysIso(today, 3),
-    );
-    final taskC = TaskItem(
-      id: now + 3,
-      title: 'Revisão do dia',
-      date: today,
-      time: '21:40',
-      priority: 'low',
-      minutes: 20,
-      category: 'Pessoal',
-      status: 'done',
-      recurrence: 'daily',
-    );
-    return RitmoData(
-      projects: [project],
-      tasks: [taskA, taskB, taskC],
-      completions: [
-        CompletionItem(
-          taskId: taskC.id,
-          title: taskC.title,
-          date: today,
-          category: taskC.category,
-          minutes: taskC.minutes,
-        ),
-      ],
-      goals: [
-        GoalItem(
-          id: now + 11,
-          title: 'Fortalecer conhecimentos em Redes',
-          progress: 68,
-          targetDate: addDaysIso(today, 45),
-        ),
-        GoalItem(
-          id: now + 12,
-          title: 'Concluir projeto pessoal',
-          progress: 42,
-          targetDate: addDaysIso(today, 30),
-        ),
-      ],
-      routines: [
-        RoutineItem(
-          id: now + 21,
-          title: 'Planejar o dia',
-          detail: 'Definir as 3 prioridades',
-          startDate: today,
-          minutes: 10,
-          time: '08:00',
-        ),
-        RoutineItem(
-          id: now + 22,
-          title: 'Bloco de foco',
-          detail: 'Sem notificações e sem multitarefa',
-          startDate: today,
-          frequency: 'weekdays',
-          minutes: 60,
-          time: '19:00',
-          category: 'Estudos',
-        ),
-      ],
-    );
-  }
-
   Future<void> save({bool syncReminders = true}) {
     final raw = jsonEncode(data.toJson());
     final operation = _saveChain.then((_) async {
@@ -569,11 +470,49 @@ class AppState extends ChangeNotifier {
 
   Future<void> addOrUpdateTask(TaskItem task) async {
     final index = data.tasks.indexWhere((e) => e.id == task.id);
+    final previous = index >= 0 ? data.tasks[index] : null;
     if (index >= 0) {
       data.tasks[index] = task;
     } else {
       data.tasks.add(task);
     }
+
+    // Keep completion history aligned if an already completed task is edited.
+    if (previous != null && previous.status == 'done') {
+      final completionIndex = data.completions.indexWhere(
+        (e) => e.taskId == task.id && e.date == previous.date,
+      );
+      if (task.status == 'done') {
+        final updated = CompletionItem(
+          taskId: task.id,
+          title: task.title,
+          date: task.date,
+          category: task.category,
+          minutes: task.minutes,
+        );
+        if (completionIndex >= 0) {
+          data.completions[completionIndex] = updated;
+        } else {
+          data.completions.add(updated);
+        }
+      } else if (completionIndex >= 0) {
+        data.completions.removeAt(completionIndex);
+      }
+    } else if (task.status == 'done') {
+      final exists = data.completions.any(
+        (e) => e.taskId == task.id && e.date == task.date,
+      );
+      if (!exists) {
+        data.completions.add(CompletionItem(
+          taskId: task.id,
+          title: task.title,
+          date: task.date,
+          category: task.category,
+          minutes: task.minutes,
+        ));
+      }
+    }
+
     notifyListeners();
     await save(syncReminders: false);
     await NativeBridge.syncTaskReminder(task.id);
@@ -847,13 +786,18 @@ class AppState extends ChangeNotifier {
       final task = taskById(focusTaskId);
       if (task != null && task.status != 'done') {
         task.status = 'done';
-        data.completions.add(CompletionItem(
-          taskId: task.id,
-          title: task.title,
-          date: task.date,
-          category: task.category,
-          minutes: task.minutes,
-        ));
+        final exists = data.completions.any(
+          (e) => e.taskId == task.id && e.date == task.date,
+        );
+        if (!exists) {
+          data.completions.add(CompletionItem(
+            taskId: task.id,
+            title: task.title,
+            date: task.date,
+            category: task.category,
+            minutes: task.minutes,
+          ));
+        }
       }
     }
     focusActive = false;
@@ -862,7 +806,10 @@ class AppState extends ChangeNotifier {
     focusEndAt = 0;
     notifyListeners();
     await NativeBridge.stopFocus();
-    await save(syncReminders: !completeTask ? false : focusTaskId != 0);
+    await save(syncReminders: false);
+    if (completeTask && focusTaskId != 0) {
+      await NativeBridge.syncTaskReminder(focusTaskId);
+    }
   }
 
   Future<void> cancelFocus() async {
@@ -893,7 +840,8 @@ class AppState extends ChangeNotifier {
     if (moveFlexibleToTomorrow) {
       final tomorrow = addDaysIso(today, 1);
       for (final task in data.tasks) {
-        if (task.date == today &&
+        if (!task.inbox &&
+            task.date == today &&
             task.status != 'done' &&
             task.flexible &&
             task.recurrence == 'none') {

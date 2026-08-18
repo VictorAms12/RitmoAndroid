@@ -97,9 +97,10 @@ public class Store {
             if (dr != null) for (int i = 0; i < dr.length(); i++) dayReviews.add(DayReview.fromJson(dr.getJSONObject(i)));
             sanitizeLoadedData();
         } catch (Exception e) {
+            // Preserve the unreadable payload. Never overwrite user data with
+            // demonstration content merely because parsing failed.
             try { prefs.edit().putString("ritmo_data_corrupt_backup", raw).apply(); } catch (Throwable ignored) { }
             tasks.clear(); goals.clear(); routines.clear(); completions.clear(); projects.clear(); focusSessions.clear(); dayReviews.clear();
-            seed(); save();
         }
     }
 
@@ -109,14 +110,15 @@ public class Store {
             if (t.description == null) t.description = "";
             if (t.date == null || t.date.length() != 10) t.date = today();
             if (t.time == null) t.time = "";
-            if (t.priority == null) t.priority = "low";
+            if (!"auto".equals(t.priority) && !"high".equals(t.priority) && !"medium".equals(t.priority) && !"low".equals(t.priority)) t.priority = "low";
             if (t.category == null || t.category.trim().isEmpty()) t.category = "Pessoal";
-            if (t.status == null) t.status = "todo";
-            if (t.recurrence == null) t.recurrence = "none";
+            if (!"todo".equals(t.status) && !"doing".equals(t.status) && !"done".equals(t.status)) t.status = "todo";
+            if (!"none".equals(t.recurrence) && !"daily".equals(t.recurrence) && !"weekdays".equals(t.recurrence) && !"weekly".equals(t.recurrence) && !"monthly".equals(t.recurrence)) t.recurrence = "none";
             if (t.deadline == null || t.deadline.length() != 10) t.deadline = t.date;
-            if (t.minutes < 0) t.minutes = 0;
-            if (t.energy == null || t.energy.trim().isEmpty()) t.energy = "medium";
-            if (t.preferredPeriod == null || t.preferredPeriod.trim().isEmpty()) t.preferredPeriod = "any";
+            t.minutes = Math.max(0, Math.min(1440, t.minutes));
+            if (!"low".equals(t.energy) && !"medium".equals(t.energy) && !"high".equals(t.energy)) t.energy = "medium";
+            if (!"any".equals(t.preferredPeriod) && !"morning".equals(t.preferredPeriod) && !"afternoon".equals(t.preferredPeriod) && !"evening".equals(t.preferredPeriod)) t.preferredPeriod = "any";
+            if (t.inbox) { t.time = ""; t.reminderMinutes = -1; }
             if (t.subtasks == null) t.subtasks = new ArrayList<>();
         }
         for (Goal g : goals) {
@@ -127,12 +129,12 @@ public class Store {
         for (Routine r : routines) {
             if (r.title == null || r.title.trim().isEmpty()) r.title = "Hábito";
             if (r.detail == null) r.detail = "";
-            if (r.frequency == null) r.frequency = "daily";
+            if (!"daily".equals(r.frequency) && !"weekdays".equals(r.frequency) && !"weekly".equals(r.frequency) && !"custom".equals(r.frequency)) r.frequency = "daily";
             if (r.startDate == null || r.startDate.length() != 10) r.startDate = today();
             if (r.time == null) r.time = "";
             if (r.category == null || r.category.trim().isEmpty()) r.category = "Pessoal";
             if (r.accent == null || r.accent.trim().isEmpty()) r.accent = "indigo";
-            if (r.minutes < 0) r.minutes = 0;
+            r.minutes = Math.max(0, Math.min(1440, r.minutes));
         }
         for (Project p : projects) {
             if (p.title == null || p.title.trim().isEmpty()) p.title = "Projeto";
@@ -453,28 +455,6 @@ public class Store {
         String start = addDays(today(), -29);
         for (int i = 0; i < 30; i++) values[i] = combinedDayScore(addDays(start, i));
         return values;
-    }
-
-    private void seed() {
-        String d = today();
-        Project project = new Project(System.currentTimeMillis() + 50, "Projeto pessoal", "Organizar e executar as próximas etapas.", addDays(d, 30));
-        projects.add(project);
-
-        Task a = new Task(System.currentTimeMillis() + 1, "Revisar conteúdo de Redes", "Revisar anotações e fazer 10 questões.", d, "09:00", "auto", 60, "Estudos", "todo", "weekdays", 10);
-        a.subtasks.add(new Subtask(System.currentTimeMillis() + 101, "Revisar anotações", false));
-        a.subtasks.add(new Subtask(System.currentTimeMillis() + 102, "Resolver 10 questões", false));
-        tasks.add(a);
-        tasks.add(new Task(System.currentTimeMillis() + 2, "Organizar projeto pessoal", "Separar prioridades e quebrar o projeto em pequenas etapas.", d, "14:30", "medium", 90, "Projeto", "doing", "none", 30, project.id));
-        tasks.add(new Task(System.currentTimeMillis() + 3, "Revisão do dia", "", d, "21:40", "low", 20, "Pessoal", "done", "daily", -1));
-        completions.add(new Completion(tasks.get(2).id, tasks.get(2).title, d, tasks.get(2).category, tasks.get(2).minutes));
-
-        goals.add(new Goal(System.currentTimeMillis() + 11, "Fortalecer conhecimentos em Redes", 68, addDays(d, 45)));
-        goals.add(new Goal(System.currentTimeMillis() + 12, "Concluir projeto pessoal", 42, addDays(d, 30)));
-        goals.add(new Goal(System.currentTimeMillis() + 13, "Manter rotina semanal", 76, addDays(d, 14)));
-
-        routines.add(new Routine(System.currentTimeMillis() + 21, "Planejar o dia", "Definir as 3 prioridades", "daily", 10, d));
-        routines.add(new Routine(System.currentTimeMillis() + 22, "Bloco de foco", "Sem notificações e sem multitarefa", "weekdays", 60, d));
-        routines.add(new Routine(System.currentTimeMillis() + 23, "Revisão noturna", "Fechar pendências e preparar amanhã", "daily", 20, d));
     }
 
     public DayReview findDayReview(String date) {

@@ -34,7 +34,10 @@ public class ReminderReceiver extends BroadcastReceiver {
         if (ACTION_COMPLETE.equals(action)) {
             Store store = new Store(context);
             Store.Task task = store.findTask(taskId);
-            if (task != null && !"done".equals(task.status)) store.setTaskStatus(task, "done");
+            if (task != null && !"done".equals(task.status)) {
+                store.setTaskStatus(task, "done");
+                ReminderScheduler.schedule(context, task);
+            }
             cancelNotification(context, notificationId);
             return;
         }
