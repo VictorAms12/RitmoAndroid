@@ -1,0 +1,539 @@
+name: Ritmo 3.4.2 Final Audit
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    if: ${{ contains(github.event.head_commit.message, 'start Ritmo 3.4.2 final audit') }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.4"
+          channel: "stable"
+          cache: true
+
+      - name: Apply reliability fixes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          def read(p): return Path(p).read_text(encoding='utf-8')
+          def write(p, s): Path(p).write_text(s, encoding='utf-8', newline='\n')
+          def rep(p, old, new, label):
+              s = read(p)
+              if new in s:
+                  print('already:', label); return
+              if old not in s:
+                  raise SystemExit(f'missing {label} in {p}')
+              write(p, s.replace(old, new, 1)); print('fixed:', label)
+
+          # ---------- AppState ----------
+          p='lib/core/app_state.dart'
+          rep(p,
+          """  Future<void> refreshFromNative() async {
+              if (loading) return;
+              try {
+                await _loadData();""",
+          """  Future<void> refreshFromNative() async {
+              if (loading) return;
+              try {
+                await _saveChain;
+                await _loadData();""", 'refresh/save race')
+
+          rep(p,
+          """    plannerIncludeWeekend = await _prefs.getBool('planner_weekend') ??
+                  (legacy['plannerIncludeWeekend'] as bool?) ??
+                  true;
+            }""",
+          """    plannerIncludeWeekend = await _prefs.getBool('planner_weekend') ??
+                  (legacy['plannerIncludeWeekend'] as bool?) ??
+                  true;
+              plannerStartHour = plannerStartHour.clamp(0, 23).toInt();
+              plannerEndHour = plannerEndHour.clamp(plannerStartHour + 1, 24).toInt();
+              plannerCapacityMinutes = plannerCapacityMinutes.clamp(60, 16 * 60).toInt();
+            }""", 'planner settings sanitize')
+
+          rep(p,
+          """  Future<void> setTaskStatus(TaskItem task, String status) async {
+              final wasDone = task.status == 'done';""",
+          """  Future<void> setTaskStatus(TaskItem task, String status) async {
+              if (!const {'todo', 'doing', 'done'}.contains(status)) return;
+              final wasDone = task.status == 'done';""", 'task status validation')
+
+          rep(p,
+          """  Future<void> addOrUpdateTask(TaskItem task) async {
+              final index = data.tasks.indexWhere((e) => e.id == task.id);
+              if (index >= 0) {
+                data.tasks[index] = task;
+              } else {
+                data.tasks.add(task);
+              }
+              notifyListeners();
+              await save(syncReminders: false);
+              await NativeBridge.syncTaskReminder(task.id);
+            }""",
+          """  Future<void> addOrUpdateTask(TaskItem task) async {
+              final index = data.tasks.indexWhere((e) => e.id == task.id);
+              final previousDate = index >= 0 ? data.tasks[index].date : null;
+              if (index >= 0) {
+                data.tasks[index] = task;
+              } else {
+                data.tasks.add(task);
+              }
+              _reconcileTaskCompletion(task, previousDate: previousDate);
+              notifyListeners();
+              await save(syncReminders: false);
+              await NativeBridge.syncTaskReminder(task.id);
+            }
+
+            void _reconcileTaskCompletion(TaskItem task, {String? previousDate}) {
+              if (previousDate != null && previousDate != task.date) {
+                data.completions.removeWhere(
+                  (e) => e.taskId == task.id && e.date == previousDate,
+                );
+              }
+              data.completions.removeWhere(
+                (e) => e.taskId == task.id && e.date == task.date,
+              );
+              if (task.status == 'done') {
+                data.completions.add(CompletionItem(
+                  taskId: task.id,
+                  title: task.title,
+                  date: task.date,
+                  category: task.category,
+                  minutes: task.minutes,
+                ));
+              }
+            }""", 'completion reconciliation')
+
+          rep(p,
+          """  Future<bool> _recoverExpiredFocusIfNeeded() async {
+              if (!focusActive || focusEndAt <= 0 || focusRemainingSeconds > 0) {
+                return false;
+              }
+              if (focusEndAt > DateTime.now().millisecondsSinceEpoch) return false;
+
+              final exists = data.focusSessions.any(""",
+          """  Future<bool> _recoverExpiredFocusIfNeeded() async {
+              if (!focusActive || !focusRunning || focusEndAt <= 0) return false;
+              final now = DateTime.now().millisecondsSinceEpoch;
+              if (focusEndAt > now) {
+                focusRemainingSeconds =
+                    max(0, ((focusEndAt - now) / 1000).ceil());
+                return false;
+              }
+              focusRemainingSeconds = 0;
+
+              final exists = data.focusSessions.any(""", 'focus wall clock recovery')
+
+          start = read(p).index('  Future<void> finishFocus({bool completeTask = false}) async {')
+          end = read(p).index('\n  Future<void> cancelFocus()', start)
+          s=read(p)
+          finish="""  Future<void> finishFocus({bool completeTask = false}) async {
+              if (!focusActive) return;
+              final remaining = currentFocusRemainingSeconds();
+              final executedSeconds = max(0, focusPlannedMinutes * 60 - remaining);
+              final actual = min(
+                focusPlannedMinutes,
+                (executedSeconds / 60).round(),
+              ).clamp(0, focusPlannedMinutes).toInt();
+              if (actual > 0) {
+                data.focusSessions.add(FocusSession(
+                  id: DateTime.now().microsecondsSinceEpoch,
+                  taskId: focusTaskId,
+                  title: focusTitle,
+                  date: today,
+                  mode: focusMode,
+                  plannedMinutes: focusPlannedMinutes,
+                  actualMinutes: actual,
+                  startedAt: focusStartedAt,
+                ));
+              }
+              var completedTaskId = 0;
+              if (completeTask && focusTaskId != 0) {
+                final task = taskById(focusTaskId);
+                if (task != null && task.status != 'done') {
+                  task.status = 'done';
+                  _reconcileTaskCompletion(task);
+                  completedTaskId = task.id;
+                }
+              }
+              focusActive = false;
+              focusRunning = false;
+              focusRemainingSeconds = 0;
+              focusEndAt = 0;
+              notifyListeners();
+              await NativeBridge.stopFocus();
+              await save(syncReminders: false);
+              if (completedTaskId != 0) {
+                await NativeBridge.syncTaskReminder(completedTaskId);
+              }
+            }
+          """
+          write(p, s[:start] + finish + s[end:])
+
+          rep(p,
+          """        if (task.date == today &&
+                      task.status != 'done' &&""",
+          """        if (!task.inbox &&
+                      task.date == today &&
+                      task.status != 'done' &&""", 'review Inbox guard')
+
+          # ---------- Editors ----------
+          rep('lib/sheets/editors.dart',
+              'minutes: int.tryParse(_minutes.text) ?? 15,',
+              'minutes: duration,', 'habit duration clamp')
+
+          # ---------- Smart Planner ----------
+          p='lib/services/planner_service.dart'
+          rep(p,
+          """    String? fromDate,
+            }) {
+              final start = fromDate ?? isoDate(DateTime.now());""",
+          """    String? fromDate,
+              DateTime? now,
+            }) {
+              final clock = now ?? DateTime.now();
+              final currentDate = isoDate(clock);
+              final currentMinute = ((clock.hour * 60 + clock.minute + 4) ~/ 5) * 5;
+              final start = fromDate ?? currentDate;""", 'planner clock')
+
+          rep(p,
+          """      for (final routine in data.routines) {
+                if (!routine.dueOn(date) || routine.doneOn(date)) continue;
+                load[date] = (load[date] ?? 0) + max(0, routine.minutes);""",
+          """      for (final routine in data.routines) {
+                if (!routine.dueOn(date)) continue;
+                load[date] = (load[date] ?? 0) + max(0, routine.minutes);""", 'completed habit capacity')
+
+          rep(p,
+          """    final eligible = <TaskItem>[];
+              for (final task in data.tasks) {
+                if (task.status == 'done' || task.inbox) continue;
+
+                final canMove = task.flexible && task.recurrence == 'none';""",
+          """    final eligible = <TaskItem>[];
+              for (final task in data.tasks) {
+                if (task.inbox) continue;
+                if (task.status == 'done') {
+                  if (task.date.compareTo(start) >= 0 && task.date.compareTo(horizon) <= 0) {
+                    final mins = max(0, task.minutes);
+                    load[task.date] = (load[task.date] ?? 0) + mins;
+                    if (task.time.isNotEmpty) {
+                      _addOccupied(occupied[task.date]!, task.time, max(15, mins), settings.breakMinutes);
+                    }
+                  }
+                  continue;
+                }
+
+                final canMove = task.flexible && task.recurrence == 'none';""", 'completed task capacity')
+
+          s=read(p)
+          old="""          settings: settings,
+                    startDate: start,
+                  );"""
+          new="""          settings: settings,
+                    startDate: start,
+                    minimumStartMinute: date == currentDate
+                        ? currentMinute
+                        : settings.startHour * 60,
+                  );"""
+          if s.count(old) != 2: raise SystemExit(f'candidate call count={s.count(old)}')
+          write(p, s.replace(old,new))
+
+          rep(p,
+          """      final over = !best.fits ||
+                    (load[best.date] ?? 0) + estimate > settings.capacityMinutes ||
+                    best.time.isEmpty;
+
+                assignments.add(PlannerAssignment(
+                  taskId: task.id,
+                  oldDate: task.date,
+                  oldTime: task.time,
+                  newDate: best.date,
+                  newTime: best.time,
+                  overCapacity: over,
+                  reason: best.reason,""",
+          """      final originalDeadline = task.deadline.length == 10 ? task.deadline : task.date;
+                final missesDeadline = best.date.compareTo(originalDeadline) > 0;
+                final over = missesDeadline || !best.fits ||
+                    (load[best.date] ?? 0) + estimate > settings.capacityMinutes ||
+                    best.time.isEmpty;
+                final assignmentReason = missesDeadline
+                    ? '${best.reason} Prazo ultrapassado; revise o prazo ou a carga.'
+                    : best.reason;
+
+                assignments.add(PlannerAssignment(
+                  taskId: task.id,
+                  oldDate: task.date,
+                  oldTime: task.time,
+                  newDate: best.date,
+                  newTime: best.time,
+                  overCapacity: over,
+                  reason: assignmentReason,""", 'deadline miss warning')
+
+          rep(p,
+          """    required PlannerSettings settings,
+              required String startDate,
+            }) {
+              final period = _preferredPeriod(task);
+              final bounds = _periodBounds(period, settings.startHour * 60, settings.endHour * 60);
+              var slot = _findSlot(occupied, bounds.$1, bounds.$2, estimatedMinutes);""",
+          """    required PlannerSettings settings,
+              required String startDate,
+              required int minimumStartMinute,
+            }) {
+              final period = _preferredPeriod(task);
+              final usableStart = max(settings.startHour * 60, minimumStartMinute);
+              final bounds = _periodBounds(period, usableStart, settings.endHour * 60);
+              var slot = _findSlot(
+                occupied, bounds.$1, bounds.$2, estimatedMinutes, settings.breakMinutes,
+              );""", 'candidate minimum time')
+
+          rep(p,
+          """      slot = _findSlot(
+                  occupied,
+                  settings.startHour * 60,
+                  settings.endHour * 60,
+                  estimatedMinutes,
+                );""",
+          """      slot = _findSlot(
+                  occupied,
+                  usableStart,
+                  settings.endHour * 60,
+                  estimatedMinutes,
+                  settings.breakMinutes,
+                );""", 'fallback minimum time')
+
+          rep(p,
+          """  static String _findSlot(
+              List<_Interval> list,
+              int dayStart,
+              int dayEnd,
+              int minutes,
+            ) {
+              if (dayEnd <= dayStart || minutes <= 0) return '';
+              var cursor = dayStart;
+              for (final interval in list) {
+                if (interval.end <= dayStart || interval.start >= dayEnd) continue;
+                if (cursor + minutes <= interval.start) return _formatMinutes(cursor);
+                if (interval.end > cursor) cursor = interval.end;
+                if (cursor >= dayEnd) return '';
+              }
+              return cursor + minutes <= dayEnd ? _formatMinutes(cursor) : '';
+            }""",
+          """  static String _findSlot(
+              List<_Interval> list,
+              int dayStart,
+              int dayEnd,
+              int minutes,
+              int breakMinutes,
+            ) {
+              if (dayEnd <= dayStart || minutes <= 0) return '';
+              final gap = max(0, breakMinutes);
+              var cursor = dayStart;
+              for (final interval in list) {
+                if (interval.end <= dayStart || interval.start >= dayEnd) continue;
+                if (cursor + minutes + gap <= interval.start) return _formatMinutes(cursor);
+                if (interval.end > cursor) cursor = interval.end;
+                if (cursor >= dayEnd) return '';
+              }
+              return cursor + minutes <= dayEnd ? _formatMinutes(cursor) : '';
+            }""", 'planner break spacing')
+
+          # ---------- Android safety ----------
+          p='android/app/src/main/java/com/ritmo/mobile/Store.java'
+          rep(p,
+          """        } catch (Exception e) {
+                  try { prefs.edit().putString(\"ritmo_data_corrupt_backup\", raw).apply(); } catch (Throwable ignored) { }
+                  tasks.clear(); goals.clear(); routines.clear(); completions.clear(); projects.clear(); focusSessions.clear(); dayReviews.clear();
+                  seed(); save();
+              }""",
+          """        } catch (Exception e) {
+                  try { prefs.edit().putString(\"ritmo_data_corrupt_backup\", raw).apply(); } catch (Throwable ignored) { }
+                  tasks.clear(); goals.clear(); routines.clear(); completions.clear(); projects.clear(); focusSessions.clear(); dayReviews.clear();
+              }""", 'preserve corrupt native payload')
+
+          rep(p,
+          """        for (Task t : tasks) {
+                  if (t.date.compareTo(start) < 0 || t.date.compareTo(today()) > 0) continue;
+                  total++; if (\"done\".equals(t.status)) done++;
+              }""",
+          """        for (Task t : tasks) {
+                  if (t.inbox || t.date.compareTo(start) < 0 || t.date.compareTo(today()) > 0) continue;
+                  total++; if (\"done\".equals(t.status)) done++;
+              }""", 'native Inbox metric')
+
+          p='android/app/src/main/java/com/ritmo/mobile/ReminderReceiver.java'
+          rep(p,
+          """            Store.Task task = store.findTask(taskId);
+                  if (task != null && !\"done\".equals(task.status)) store.setTaskStatus(task, \"done\");""",
+          """            Store.Task task = store.findTask(taskId);
+                  if (task != null && !task.inbox && !\"done\".equals(task.status)) {
+                      store.setTaskStatus(task, \"done\");
+                  }""", 'stale Inbox completion action')
+          rep(p,
+          """        if (ACTION_ROUTINE_COMPLETE.equals(action)) {
+                  if (routine != null && !routine.doneOn(Store.today())) {""",
+          """        if (ACTION_ROUTINE_COMPLETE.equals(action)) {
+                  if (routine != null && routine.dueOn(Store.today()) && !routine.doneOn(Store.today())) {""", 'stale routine completion action')
+          rep(p,
+          """        if (ACTION_ROUTINE_SNOOZE.equals(action)) {
+                  if (routine != null) RoutineReminderScheduler.scheduleAt(context, routine, System.currentTimeMillis() + 10 * 60_000L);""",
+          """        if (ACTION_ROUTINE_SNOOZE.equals(action)) {
+                  if (routine != null && routine.dueOn(Store.today())) {
+                      RoutineReminderScheduler.scheduleAt(context, routine, System.currentTimeMillis() + 10 * 60_000L);
+                  }""", 'stale routine snooze action')
+
+          rep('android/app/src/main/java/com/ritmo/mobile/RoutineReminderScheduler.java',
+              'if (routine == null || routine.doneOn(Store.today()) || when <= System.currentTimeMillis()) return;',
+              'if (routine == null || !routine.dueOn(Store.today()) || routine.doneOn(Store.today()) || when <= System.currentTimeMillis()) return;',
+              'routine snooze occurrence guard')
+
+          # ---------- Regression tests ----------
+          p='test/planner_service_test.dart'
+          s=read(p)
+          if 'planner does not schedule in elapsed time' not in s:
+              tests=r'''
+
+            test('planner does not schedule in elapsed time', () {
+              final data = RitmoData(tasks: [TaskItem(
+                id: 20, title: 'Agora ou depois', date: '2026-08-18',
+                deadline: '2026-08-18', flexible: true, minutes: 30,
+              )]);
+              final result = PlannerService.plan(
+                data,
+                const PlannerSettings(startHour: 8, endHour: 18, horizonDays: 1),
+                fromDate: '2026-08-18',
+                now: DateTime(2026, 8, 18, 11, 7),
+              );
+              expect(result.assignments.single.newTime.compareTo('11:10') >= 0, isTrue);
+            });
+
+            test('planner preserves break before a fixed block', () {
+              final data = RitmoData(tasks: [
+                TaskItem(id: 30, title: 'Fixa', date: '2026-08-18', time: '09:00', minutes: 60),
+                TaskItem(id: 31, title: 'Flexível', date: '2026-08-18', deadline: '2026-08-18', flexible: true, minutes: 60),
+              ]);
+              final result = PlannerService.plan(
+                data,
+                const PlannerSettings(startHour: 8, endHour: 13, horizonDays: 1, breakMinutes: 10),
+                fromDate: '2026-08-18',
+                now: DateTime(2026, 8, 18, 7),
+              );
+              expect(result.assignments.single.newTime, '10:10');
+            });
+
+            test('planner flags assignment after deadline', () {
+              final data = RitmoData(tasks: [TaskItem(
+                id: 40, title: 'Prazo no sábado', date: '2026-08-22',
+                deadline: '2026-08-22', flexible: true, minutes: 30,
+              )]);
+              final result = PlannerService.plan(
+                data,
+                const PlannerSettings(startHour: 8, endHour: 18, horizonDays: 3, includeWeekend: false),
+                fromDate: '2026-08-22',
+                now: DateTime(2026, 8, 22, 7),
+              );
+              final a = result.assignments.single;
+              expect(a.newDate, '2026-08-24');
+              expect(a.overCapacity, isTrue);
+              expect(a.reason, contains('Prazo ultrapassado'));
+            });
+
+            test('completed work consumes daily capacity', () {
+              final data = RitmoData(tasks: [
+                TaskItem(id: 50, title: 'Já feita', date: '2026-08-18', time: '08:00', status: 'done', minutes: 300),
+                TaskItem(id: 51, title: 'Nova carga', date: '2026-08-18', deadline: '2026-08-18', flexible: true, minutes: 120),
+              ]);
+              final result = PlannerService.plan(
+                data,
+                const PlannerSettings(startHour: 8, endHour: 18, capacityMinutes: 360, horizonDays: 1),
+                fromDate: '2026-08-18',
+                now: DateTime(2026, 8, 18, 7),
+              );
+              expect(result.assignments.single.overCapacity, isTrue);
+              expect(result.loadMinutes['2026-08-18'], greaterThan(360));
+            });
+          '''
+              i=s.rfind('\n}')
+              if i < 0: raise SystemExit('test file closing brace missing')
+              write(p, s[:i]+tests+s[i:])
+
+          # ---------- Version/docs ----------
+          p='pubspec.yaml'; s=read(p); s=re.sub(r'^version:\s*.*$', 'version: 3.4.2+14', s, flags=re.M); write(p,s)
+          p='android/app/build.gradle'; s=read(p)
+          s=re.sub(r'flutterVersionCode = localProperties\.getProperty\("flutter\.versionCode"\) \?: "\d+"', 'flutterVersionCode = localProperties.getProperty("flutter.versionCode") ?: "14"', s)
+          s=re.sub(r'flutterVersionName = localProperties\.getProperty\("flutter\.versionName"\) \?: "[^"]+"', 'flutterVersionName = localProperties.getProperty("flutter.versionName") ?: "3.4.2"', s); write(p,s)
+          p='lib/screens/settings_page.dart'; write(p, read(p).replace('Ritmo 3.4.1', 'Ritmo 3.4.2'))
+
+          p='README.md'; s=read(p)
+          s=s.replace('versão-3.4.1-', 'versão-3.4.2-').replace('Versão atual: **3.4.1 —', 'Versão atual: **3.4.2 —')
+          s=s.replace('Ritmo-v3.4.1-APK','Ritmo-v3.4.2-APK').replace('Ritmo-v3.4.1.apk','Ritmo-v3.4.2.apk')
+          s=s.replace('Ritmo-v3.4.1-Windows','Ritmo-v3.4.2-Windows').replace('Na versão 3.4.1, os dados','Na versão 3.4.2, os dados')
+          s=s.replace('A versão 3.4.1 possui builds','A versão 3.4.2 possui builds').replace('Ritmo 3.4.1\nversionCode: 12','Ritmo 3.4.2\nversionCode: 14')
+          s=s.replace('A partir da versão 3.4.1, Android e Windows compartilham','A partir da versão 3.4.0, Android e Windows compartilham')
+          s=s.replace('flutter analyze --no-fatal-infos --no-fatal-warnings\n```\n\nA versão 3.4.2 possui builds','flutter analyze --no-fatal-infos --no-fatal-warnings\nflutter test\n```\n\nA versão 3.4.2 possui builds')
+          write(p,s)
+
+          p='CHANGELOG.md'; s=read(p)
+          if '## 3.4.2 — Reliability & Logic Polish' not in s:
+              entry='''## 3.4.2 — Reliability & Logic Polish
+
+### Correções
+- Corrigida a duração de hábitos para respeitar o limite validado no editor.
+- Conclusões são reconciliadas ao editar tarefas concluídas, evitando estatísticas obsoletas.
+- Sessões de foco encerradas imediatamente deixam de registrar um minuto inexistente.
+- Recuperação de foco expirado usa o relógio real também fora do Android.
+- Refresh ao retornar ao app aguarda gravações pendentes antes de recarregar os dados.
+- Dados nativos corrompidos são preservados para recuperação e não substituídos por dados de demonstração.
+- Ações antigas de notificações não concluem itens da Inbox nem hábitos fora da programação atual.
+
+### Smart Planner
+- Não agenda blocos em horários que já passaram no dia atual.
+- Respeita corretamente o intervalo configurado entre blocos.
+- Trabalho e hábitos já concluídos continuam contando para a capacidade consumida do dia.
+- Sugestões que ultrapassam o prazo passam a ser marcadas como atenção.
+- Preferências inválidas de versões antigas são normalizadas antes do planejamento.
+
+### Qualidade
+- Novos testes de regressão cobrem horário atual, intervalos, capacidade consumida e estouro de prazo.
+- Pipelines Android e Windows executam análise estática e testes antes do release.
+
+'''
+              s=s.replace('# Changelog\n\n','# Changelog\n\n'+entry,1); write(p,s)
+          PY
+
+      - name: Fetch packages
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Test
+        run: flutter test
+
+      - name: Commit audited source
+        shell: bash
+        run: |
+          git config user.name "VictorAms12"
+          git config user.email "victoralexandresoaresmaranhao@gmail.com"
+          git add -A
+          git reset -- .github/workflows/final-audit-v3.4.2.yml
+          git commit -m "fix: Ritmo 3.4.2 reliability and logic polish [skip ci]"
+          git push origin main
