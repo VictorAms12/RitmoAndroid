@@ -177,7 +177,8 @@ class PlannerService {
       }
     }
 
-    int priorityWeight(TaskItem task) => switch (task.effectivePriority(start)) {
+    int priorityWeight(TaskItem task) =>
+        switch (task.effectivePriority(start)) {
           'high' => 3,
           'medium' => 2,
           _ => 1,
@@ -217,8 +218,9 @@ class PlannerService {
           occupied: occupied[date]!,
           settings: settings,
           startDate: start,
-          minimumStartMinute:
-              date == currentDate ? currentMinute : settings.startHour * 60,
+          minimumStartMinute: date == currentDate
+              ? currentMinute
+              : settings.startHour * 60,
         );
 
         if (best == null ||
@@ -241,8 +243,9 @@ class PlannerService {
             occupied: occupied[date]!,
             settings: settings,
             startDate: start,
-            minimumStartMinute:
-                date == currentDate ? currentMinute : settings.startHour * 60,
+            minimumStartMinute: date == currentDate
+                ? currentMinute
+                : settings.startHour * 60,
           );
           if (best == null || candidate.score < best.score) best = candidate;
         }
@@ -257,10 +260,12 @@ class PlannerService {
             'Não encontrei uma janela livre dentro das preferências atuais.',
       );
 
-      final originalDeadline =
-          task.deadline.length == 10 ? task.deadline : task.date;
+      final originalDeadline = task.deadline.length == 10
+          ? task.deadline
+          : task.date;
       final missesDeadline = best.date.compareTo(originalDeadline) > 0;
-      final over = missesDeadline ||
+      final over =
+          missesDeadline ||
           !best.fits ||
           (load[best.date] ?? 0) + estimate > settings.capacityMinutes ||
           best.time.isEmpty;
@@ -268,17 +273,19 @@ class PlannerService {
           ? '${best.reason} Prazo ultrapassado; revise o prazo ou a carga.'
           : best.reason;
 
-      assignments.add(PlannerAssignment(
-        taskId: task.id,
-        oldDate: task.date,
-        oldTime: task.time,
-        newDate: best.date,
-        newTime: best.time,
-        overCapacity: over,
-        reason: assignmentReason,
-        estimatedMinutes: estimate,
-        score: best.score,
-      ));
+      assignments.add(
+        PlannerAssignment(
+          taskId: task.id,
+          oldDate: task.date,
+          oldTime: task.time,
+          newDate: best.date,
+          newTime: best.time,
+          overCapacity: over,
+          reason: assignmentReason,
+          estimatedMinutes: estimate,
+          score: best.score,
+        ),
+      );
 
       load[best.date] = (load[best.date] ?? 0) + estimate;
       if (best.time.isNotEmpty) {
@@ -291,8 +298,9 @@ class PlannerService {
       }
     }
 
-    final overloaded =
-        load.values.where((e) => e > settings.capacityMinutes).length;
+    final overloaded = load.values
+        .where((e) => e > settings.capacityMinutes)
+        .length;
     final insights = <String>[];
     if (assignments.isEmpty) {
       insights.add(
@@ -344,11 +352,7 @@ class PlannerService {
   }) {
     final period = _preferredPeriod(task);
     final usableStart = max(settings.startHour * 60, minimumStartMinute);
-    final bounds = _periodBounds(
-      period,
-      usableStart,
-      settings.endHour * 60,
-    );
+    final bounds = _periodBounds(period, usableStart, settings.endHour * 60);
     var slot = _findSlot(
       occupied,
       bounds.$1,
@@ -375,11 +379,13 @@ class PlannerService {
     final dueIn = max(0, daysBetween(date, task.deadline));
 
     var score = capacityRatio * 100;
-    score += dayIndex * switch (priority) {
-      'high' => 16,
-      'medium' => 8,
-      _ => 3,
-    };
+    score +=
+        dayIndex *
+        switch (priority) {
+          'high' => 16,
+          'medium' => 8,
+          _ => 3,
+        };
     if (!fits) score += 250;
     if (!periodMatched) score += 24;
     if (dueIn == 0) score -= 10;
@@ -408,8 +414,8 @@ class PlannerService {
       capacityRatio <= .65
           ? 'carga leve'
           : capacityRatio <= .9
-              ? 'carga equilibrada'
-              : 'carga alta',
+          ? 'carga equilibrada'
+          : 'carga alta',
     );
 
     return _Candidate(
@@ -423,7 +429,8 @@ class PlannerService {
 
   static Map<int, double> _recentFocusAverages(List<FocusSession> sessions) {
     final recent = <int, List<int>>{};
-    final ordered = [...sessions]..sort((a, b) => a.startedAt.compareTo(b.startedAt));
+    final ordered = [...sessions]
+      ..sort((a, b) => a.startedAt.compareTo(b.startedAt));
     for (final session in ordered) {
       if (session.taskId == 0 || session.actualMinutes <= 0) continue;
       final values = recent.putIfAbsent(session.taskId, () => <int>[]);
@@ -432,7 +439,8 @@ class PlannerService {
     }
     return {
       for (final entry in recent.entries)
-        entry.key: entry.value.fold<int>(0, (sum, value) => sum + value) /
+        entry.key:
+            entry.value.fold<int>(0, (sum, value) => sum + value) /
             entry.value.length,
     };
   }
@@ -464,11 +472,11 @@ class PlannerService {
   }
 
   static String _periodLabel(String period) => switch (period) {
-        'morning' => 'manhã preferida',
-        'afternoon' => 'tarde preferida',
-        'evening' => 'noite preferida',
-        _ => 'horário livre',
-      };
+    'morning' => 'manhã preferida',
+    'afternoon' => 'tarde preferida',
+    'evening' => 'noite preferida',
+    _ => 'horário livre',
+  };
 
   static String _sentence(String value) {
     if (value.isEmpty) return value;

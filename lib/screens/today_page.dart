@@ -83,16 +83,20 @@ class _TodayPageState extends State<TodayPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Fechamento do dia',
-                    style: Theme.of(context).textTheme.headlineMedium),
+                Text(
+                  'Fechamento do dia',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
                 const SizedBox(height: 6),
                 Text(
                   'Registre como foi hoje e prepare amanhã sem carregar tudo no automático.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 18),
-                Text('Como foi seu dia?',
-                    style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  'Como foi seu dia?',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: 8),
                 SegmentedButton<int>(
                   segments: const [
@@ -103,8 +107,7 @@ class _TodayPageState extends State<TodayPage> {
                     ButtonSegment(value: 5, label: Text('😄')),
                   ],
                   selected: {mood},
-                  onSelectionChanged: (v) =>
-                      setLocal(() => mood = v.first),
+                  onSelectionChanged: (v) => setLocal(() => mood = v.first),
                 ),
                 const SizedBox(height: 14),
                 TextField(
@@ -163,7 +166,9 @@ class _TodayPageState extends State<TodayPage> {
     final done = state.doneCountOn(today);
     final focus = state.focusMinutesOn(today);
     final streak = state.bestRoutineStreak();
-    final flexible = allTasks.where((e) => e.flexible && e.status != 'done').length;
+    final flexible = allTasks
+        .where((e) => e.flexible && e.status != 'done')
+        .length;
 
     final groups = <String, List<TaskItem>>{
       'Manhã': [],
@@ -175,7 +180,9 @@ class _TodayPageState extends State<TodayPage> {
       groups[_dayPart(t)]!.add(t);
     }
 
-    final name = state.userName.isEmpty ? '' : ', ${state.userName.split(' ').first}';
+    final name = state.userName.isEmpty
+        ? ''
+        : ', ${state.userName.split(' ').first}';
     final dateLabel = DateFormat("EEEE, d 'de' MMMM", 'pt_BR')
         .format(DateTime.now())
         .replaceFirstMapped(RegExp(r'^.'), (m) => m[0]!.toUpperCase());
@@ -196,10 +203,15 @@ class _TodayPageState extends State<TodayPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('${_greeting()}$name',
-                              style: Theme.of(context).textTheme.headlineMedium),
+                          Text(
+                            '${_greeting()}$name',
+                            style: Theme.of(context).textTheme.headlineMedium,
+                          ),
                           const SizedBox(height: 4),
-                          Text(dateLabel, style: Theme.of(context).textTheme.bodySmall),
+                          Text(
+                            dateLabel,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
                         ],
                       ),
                     ),
@@ -209,7 +221,9 @@ class _TodayPageState extends State<TodayPage> {
                         IconButton.filledTonal(
                           tooltip: 'Central',
                           onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => CommandCenterPage(state: state)),
+                            MaterialPageRoute(
+                              builder: (_) => CommandCenterPage(state: state),
+                            ),
                           ),
                           icon: const Icon(Icons.dashboard_customize_outlined),
                         ),
@@ -217,7 +231,8 @@ class _TodayPageState extends State<TodayPage> {
                         IconButton.filledTonal(
                           tooltip: 'Alternar tema',
                           onPressed: () {
-                            final next = Theme.of(context).brightness == Brightness.dark
+                            final next =
+                                Theme.of(context).brightness == Brightness.dark
                                 ? RitmoThemeMode.light
                                 : RitmoThemeMode.dark;
                             state.setTheme(next);
@@ -274,8 +289,10 @@ class _TodayPageState extends State<TodayPage> {
                 Row(
                   children: [
                     Expanded(
-                      child: Text('Seu dia',
-                          style: Theme.of(context).textTheme.titleLarge),
+                      child: Text(
+                        'Seu dia',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
                     ),
                     FilledButton.tonalIcon(
                       onPressed: widget.onOpenPlanner,
@@ -325,9 +342,9 @@ class _TodayPageState extends State<TodayPage> {
                       child: Text(
                         entry.key.toUpperCase(),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1,
-                            ),
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1,
+                        ),
                       ),
                     );
                     for (final task in entry.value) {
@@ -338,7 +355,8 @@ class _TodayPageState extends State<TodayPage> {
                           today: today,
                           reduceMotion: state.reduceMotion,
                           onToggle: () => state.toggleTask(task),
-                          onEdit: () => showTaskEditor(context, state, task: task),
+                          onEdit: () =>
+                              showTaskEditor(context, state, task: task),
                           confirmDelete: () => _confirmDelete(task),
                           onDelete: () => state.deleteTask(task),
                           onFocus: task.status == 'done'
@@ -372,7 +390,8 @@ class _TodayPageState extends State<TodayPage> {
                         date: today,
                         reduceMotion: state.reduceMotion,
                         onToggle: () => state.toggleRoutine(r, today),
-                        onEdit: () => showRoutineEditor(context, state, routine: r),
+                        onEdit: () =>
+                            showRoutineEditor(context, state, routine: r),
                       ),
                     ),
                   ),
@@ -466,18 +485,21 @@ class _HeroSummary extends StatelessWidget {
                   progress >= 80
                       ? 'Excelente consistência.'
                       : progress >= 50
-                          ? 'Você está avançando.'
-                          : 'Comece pelo essencial.',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Colors.white,
-                      ),
+                      ? 'Você está avançando.'
+                      : 'Comece pelo essencial.',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(color: Colors.white),
                 ),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
                   runSpacing: 7,
                   children: [
-                    _HeroPill(icon: Icons.task_alt_rounded, text: '$done/$total tarefas'),
+                    _HeroPill(
+                      icon: Icons.task_alt_rounded,
+                      text: '$done/$total tarefas',
+                    ),
                     _HeroPill(
                       icon: Icons.center_focus_strong_rounded,
                       text: '${focusMinutes}m foco',
@@ -504,28 +526,28 @@ class _HeroPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: .11),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: Colors.white.withValues(alpha: .08)),
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: .11),
+      borderRadius: BorderRadius.circular(999),
+      border: Border.all(color: Colors.white.withValues(alpha: .08)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: Colors.white),
+        const SizedBox(width: 5),
+        Text(
+          text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: Colors.white),
-            const SizedBox(width: 5),
-            Text(
-              text,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      );
+      ],
+    ),
+  );
 }
 
 class _FilterChip extends StatelessWidget {
@@ -540,13 +562,13 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(right: 7),
-        child: ChoiceChip(
-          label: Text(label),
-          selected: selected,
-          onSelected: (_) => onTap(),
-        ),
-      );
+    padding: const EdgeInsets.only(right: 7),
+    child: ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onTap(),
+    ),
+  );
 }
 
 class _FocusCard extends StatelessWidget {
@@ -568,11 +590,15 @@ class _FocusCard extends StatelessWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: .12),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: .12),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(
-                  active ? Icons.timer_rounded : Icons.center_focus_strong_rounded,
+                  active
+                      ? Icons.timer_rounded
+                      : Icons.center_focus_strong_rounded,
                   color: Theme.of(context).colorScheme.primary,
                 ),
               ),
@@ -582,7 +608,9 @@ class _FocusCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      active ? 'Sessão em andamento' : 'Proteja um bloco de foco',
+                      active
+                          ? 'Sessão em andamento'
+                          : 'Proteja um bloco de foco',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 4),
@@ -614,42 +642,42 @@ class _DayCloseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Icon(
-                  reviewed ? Icons.check_circle_rounded : Icons.nightlight_round,
-                  color: reviewed
-                      ? RitmoColors.mint
-                      : Theme.of(context).colorScheme.tertiary,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        reviewed ? 'Dia revisado' : 'Fechamento do dia',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        reviewed
-                            ? 'Você já registrou sua revisão de hoje.'
-                            : 'Revise o que aconteceu e prepare amanhã em poucos segundos.',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right_rounded),
-              ],
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Icon(
+              reviewed ? Icons.check_circle_rounded : Icons.nightlight_round,
+              color: reviewed
+                  ? RitmoColors.mint
+                  : Theme.of(context).colorScheme.tertiary,
             ),
-          ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    reviewed ? 'Dia revisado' : 'Fechamento do dia',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    reviewed
+                        ? 'Você já registrou sua revisão de hoje.'
+                        : 'Revise o que aconteceu e prepare amanhã em poucos segundos.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 }

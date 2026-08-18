@@ -1,5 +1,24 @@
 # Changelog
 
+## 3.4.3
+
+### Desempenho
+- MaterialApp deixou de reconstruir a aplicação inteira a cada alteração de tarefa, hábito ou foco.
+- Telas principais agora observam o estado individualmente, reduzindo trabalho de renderização durante navegação e microinterações.
+
+### Correções
+- Sessões de foco concluídas em segundo plano no Android são recuperadas e registradas corretamente ao voltar ao app.
+- Pausar uma sessão remove o deadline ativo do cronômetro, evitando conclusão indevida após longas pausas.
+- Reagendar uma tarefa mantém um prazo futuro existente quando ele continua válido.
+- Cálculos de dias usam semântica de calendário, evitando inconsistências causadas por mudança de fuso/DST.
+- Alarmes são reagendados após reinício, atualização do app e alterações de hora/fuso no Android.
+- Serviço de foco encerra com segurança se encontrar um deadline nativo inválido.
+
+### Qualidade
+- Testes adicionais cobrem aritmética de datas.
+- Versão 3.4.3 mantém schemaVersion 8 e o novo ícone multiplataforma da linha 3.4.
+
+
 ## 3.4.2
 
 ### Confiabilidade

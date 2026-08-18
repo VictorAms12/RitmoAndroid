@@ -48,6 +48,13 @@ void main() {
     expect(restored.subtasks.single.done, isTrue);
   });
 
+  test('date helpers use calendar-day semantics', () {
+    expect(addDaysIso('2024-02-28', 1), '2024-02-29');
+    expect(addDaysIso('2024-02-29', 1), '2024-03-01');
+    expect(addDaysIso('2026-12-31', 1), '2027-01-01');
+    expect(daysBetween('2026-08-18', '2026-08-25'), 7);
+    expect(daysBetween('2026-08-25', '2026-08-18'), -7);
+  });
 
   test('validates ISO dates strictly', () {
     expect(isValidIsoDate('2026-08-18'), isTrue);

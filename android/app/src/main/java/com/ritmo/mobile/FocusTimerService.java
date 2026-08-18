@@ -32,7 +32,14 @@ public class FocusTimerService extends Service {
                 return;
             }
 
-            if (endAt > 0L && endAt <= System.currentTimeMillis()) {
+            if (endAt <= 0L) {
+                p.edit().putBoolean("running", false).apply();
+                stopForegroundCompat(true);
+                stopSelf();
+                return;
+            }
+
+            if (endAt <= System.currentTimeMillis()) {
                 p.edit()
                         .putBoolean("active", true)
                         .putBoolean("running", false)

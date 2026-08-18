@@ -134,7 +134,8 @@ class _CalendarPageState extends State<CalendarPage> {
                         month: _month,
                         selected: _selected,
                         state: state,
-                        onSelected: (value) => setState(() => _selected = value),
+                        onSelected: (value) =>
+                            setState(() => _selected = value),
                       ),
                     ],
                   ),
@@ -201,8 +202,7 @@ class _CalendarPageState extends State<CalendarPage> {
                         onDelete: () => state.deleteTask(task),
                         onFocus: task.status == 'done'
                             ? null
-                            : () =>
-                                openFocusPage(context, state, task: task),
+                            : () => openFocusPage(context, state, task: task),
                       ),
                     ),
                   ),
@@ -238,14 +238,14 @@ class _WeekLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Expanded(
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-        ),
-      );
+    child: Text(
+      label,
+      textAlign: TextAlign.center,
+      style: Theme.of(
+        context,
+      ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w800),
+    ),
+  );
 }
 
 class _MonthGrid extends StatelessWidget {
@@ -268,26 +268,20 @@ class _MonthGrid extends StatelessWidget {
     final totalCells = ((offset + days) / 7).ceil() * 7;
     final today = state.today;
     final taskTotals = <String, int>{};
-    final taskDone = <String, int>{};
     for (final task in state.data.tasks) {
       if (task.inbox) continue;
       final date = task.date;
       final parsed = parseIso(date);
       if (parsed.year != month.year || parsed.month != month.month) continue;
       taskTotals[date] = (taskTotals[date] ?? 0) + 1;
-      if (task.status == 'done') taskDone[date] = (taskDone[date] ?? 0) + 1;
     }
 
     final routineTotals = <String, int>{};
-    final routineDone = <String, int>{};
     for (var day = 1; day <= days; day++) {
       final date = isoDate(DateTime(month.year, month.month, day));
       for (final routine in state.data.routines) {
         if (!routine.dueOn(date)) continue;
         routineTotals[date] = (routineTotals[date] ?? 0) + 1;
-        if (routine.doneOn(date)) {
-          routineDone[date] = (routineDone[date] ?? 0) + 1;
-        }
       }
     }
 
@@ -306,20 +300,7 @@ class _MonthGrid extends StatelessWidget {
         final selectedDay = date == selected;
         final isToday = date == today;
         final count = taskTotals[date] ?? 0;
-        final done = taskDone[date] ?? 0;
         final routineCount = routineTotals[date] ?? 0;
-        final routineCompleted = routineDone[date] ?? 0;
-        final taskScore = count == 0 ? 100 : (done * 100 / count).round();
-        final routineScore = routineCount == 0
-            ? 100
-            : (routineCompleted * 100 / routineCount).round();
-        final score = count == 0 && routineCount == 0
-            ? 0
-            : count == 0
-                ? routineScore
-                : routineCount == 0
-                    ? taskScore
-                    : (taskScore * .65 + routineScore * .35).round();
 
         return Padding(
           padding: const EdgeInsets.all(2),
@@ -334,18 +315,16 @@ class _MonthGrid extends StatelessWidget {
                 color: selectedDay
                     ? Theme.of(context).colorScheme.primary
                     : isToday
-                        ? Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withValues(alpha: .10)
-                        : Colors.transparent,
+                    ? Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: .10)
+                    : Colors.transparent,
                 borderRadius: BorderRadius.circular(13),
                 border: isToday && !selectedDay
                     ? Border.all(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withValues(alpha: .35),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: .35),
                       )
                     : null,
               ),

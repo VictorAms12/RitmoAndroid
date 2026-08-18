@@ -4,31 +4,33 @@ import 'package:ritmo/services/planner_service.dart';
 
 void main() {
   test('Smart Planner ignores Inbox and fixed tasks', () {
-    final data = RitmoData(tasks: [
-      TaskItem(
-        id: 1,
-        title: 'Inbox',
-        date: '2026-08-18',
-        inbox: true,
-        flexible: true,
-      ),
-      TaskItem(
-        id: 2,
-        title: 'Fixa',
-        date: '2026-08-18',
-        time: '09:00',
-        flexible: false,
-        minutes: 60,
-      ),
-      TaskItem(
-        id: 3,
-        title: 'Flexível',
-        date: '2026-08-18',
-        deadline: '2026-08-19',
-        flexible: true,
-        minutes: 30,
-      ),
-    ]);
+    final data = RitmoData(
+      tasks: [
+        TaskItem(
+          id: 1,
+          title: 'Inbox',
+          date: '2026-08-18',
+          inbox: true,
+          flexible: true,
+        ),
+        TaskItem(
+          id: 2,
+          title: 'Fixa',
+          date: '2026-08-18',
+          time: '09:00',
+          flexible: false,
+          minutes: 60,
+        ),
+        TaskItem(
+          id: 3,
+          title: 'Flexível',
+          date: '2026-08-18',
+          deadline: '2026-08-19',
+          flexible: true,
+          minutes: 30,
+        ),
+      ],
+    );
 
     final result = PlannerService.plan(
       data,
@@ -81,43 +83,45 @@ void main() {
     expect(result.assignments.single.estimatedMinutes, greaterThan(30));
   });
 
-
-  test('uses the five newest focus sessions even when history is unordered', () {
-    final task = TaskItem(
-      id: 42,
-      title: 'Histórico',
-      date: '2026-08-18',
-      deadline: '2026-08-18',
-      flexible: true,
-      minutes: 30,
-    );
-    final sessions = <FocusSession>[
-      for (final started in [100, 90, 80, 70, 60])
+  test(
+    'uses the five newest focus sessions even when history is unordered',
+    () {
+      final task = TaskItem(
+        id: 42,
+        title: 'Histórico',
+        date: '2026-08-18',
+        deadline: '2026-08-18',
+        flexible: true,
+        minutes: 30,
+      );
+      final sessions = <FocusSession>[
+        for (final started in [100, 90, 80, 70, 60])
+          FocusSession(
+            id: started,
+            taskId: 42,
+            title: 'Histórico',
+            date: '2026-08-18',
+            plannedMinutes: 30,
+            actualMinutes: 20,
+            startedAt: started,
+          ),
         FocusSession(
-          id: started,
+          id: 1,
           taskId: 42,
-          title: 'Histórico',
-          date: '2026-08-18',
+          title: 'Histórico antigo',
+          date: '2026-08-01',
           plannedMinutes: 30,
-          actualMinutes: 20,
-          startedAt: started,
+          actualMinutes: 100,
+          startedAt: 1,
         ),
-      FocusSession(
-        id: 1,
-        taskId: 42,
-        title: 'Histórico antigo',
-        date: '2026-08-01',
-        plannedMinutes: 30,
-        actualMinutes: 100,
-        startedAt: 1,
-      ),
-    ];
-    final result = PlannerService.plan(
-      RitmoData(tasks: [task], focusSessions: sessions),
-      const PlannerSettings(horizonDays: 1),
-      fromDate: '2026-08-18',
-      now: DateTime(2026, 8, 18, 7),
-    );
-    expect(result.assignments.single.estimatedMinutes, 26);
-  });
+      ];
+      final result = PlannerService.plan(
+        RitmoData(tasks: [task], focusSessions: sessions),
+        const PlannerSettings(horizonDays: 1),
+        fromDate: '2026-08-18',
+        now: DateTime(2026, 8, 18, 7),
+      );
+      expect(result.assignments.single.estimatedMinutes, 26);
+    },
+  );
 }

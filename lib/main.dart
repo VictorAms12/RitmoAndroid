@@ -25,14 +25,47 @@ class RitmoApp extends StatefulWidget {
 }
 
 class _RitmoAppState extends State<RitmoApp> with WidgetsBindingObserver {
+  late bool _loading;
+  String? _errorMessage;
+  late RitmoThemeMode _themeMode;
+
   @override
   void initState() {
     super.initState();
+    _captureAppSnapshot();
+    widget.state.addListener(_onAppStateChanged);
     WidgetsBinding.instance.addObserver(this);
   }
 
   @override
+  void didUpdateWidget(covariant RitmoApp oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.state, widget.state)) {
+      oldWidget.state.removeListener(_onAppStateChanged);
+      _captureAppSnapshot();
+      widget.state.addListener(_onAppStateChanged);
+    }
+  }
+
+  void _captureAppSnapshot() {
+    _loading = widget.state.loading;
+    _errorMessage = widget.state.errorMessage;
+    _themeMode = widget.state.themeMode;
+  }
+
+  void _onAppStateChanged() {
+    final state = widget.state;
+    final needsRebuild =
+        _loading != state.loading ||
+        _errorMessage != state.errorMessage ||
+        _themeMode != state.themeMode;
+    if (!needsRebuild || !mounted) return;
+    setState(_captureAppSnapshot);
+  }
+
+  @override
   void dispose() {
+    widget.state.removeListener(_onAppStateChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -46,26 +79,18 @@ class _RitmoAppState extends State<RitmoApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: widget.state,
-      builder: (context, _) {
-        final state = widget.state;
-        return MaterialApp(
-          title: 'Ritmo',
-          debugShowCheckedModeBanner: false,
-          theme: buildLightTheme(),
-          darkTheme: buildDarkTheme(),
-          themeMode: state.materialThemeMode,
-          home: state.loading
-              ? const _LoadingScreen()
-              : state.errorMessage != null
-                  ? _ErrorScreen(
-                      error: state.errorMessage!,
-                      onRetry: state.initialize,
-                    )
-                  : RitmoShell(state: state),
-        );
-      },
+    final state = widget.state;
+    return MaterialApp(
+      title: 'Ritmo',
+      debugShowCheckedModeBanner: false,
+      theme: buildLightTheme(),
+      darkTheme: buildDarkTheme(),
+      themeMode: state.materialThemeMode,
+      home: _loading
+          ? const _LoadingScreen()
+          : _errorMessage != null
+          ? _ErrorScreen(error: _errorMessage!, onRetry: state.initialize)
+          : RitmoShell(state: state),
     );
   }
 }
@@ -164,15 +189,13 @@ class _ErrorScreen extends StatelessWidget {
                         constraints: const BoxConstraints(maxHeight: 180),
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color:
-                              Theme.of(context).colorScheme.surfaceContainer,
+                          color: Theme.of(context).colorScheme.surfaceContainer,
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: SingleChildScrollView(
                           child: SelectableText(
                             error,
-                            style:
-                                Theme.of(context).textTheme.bodySmall,
+                            style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ),
                       ),
@@ -185,9 +208,7 @@ class _ErrorScreen extends StatelessWidget {
                       const SizedBox(height: 6),
                       TextButton.icon(
                         onPressed: () async {
-                          await Clipboard.setData(
-                            ClipboardData(text: error),
-                          );
+                          await Clipboard.setData(ClipboardData(text: error));
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(

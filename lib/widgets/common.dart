@@ -22,7 +22,9 @@ class SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(2, 8, 2, 10),
       child: Row(
         children: [
-          Expanded(child: Text(title, style: Theme.of(context).textTheme.titleLarge)),
+          Expanded(
+            child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+          ),
           if (actionLabel != null && onAction != null)
             TextButton(onPressed: onAction, child: Text(actionLabel!)),
         ],
@@ -78,18 +80,18 @@ class ProgressRing extends StatelessWidget {
                 Text(
                   '${(progress * 100).round()}%',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontSize: size * .22,
-                        color: foreground,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    fontSize: size * .22,
+                    color: foreground,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 if (centerLabel != null)
                   Text(
                     centerLabel!,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: foreground.withValues(alpha: .82),
-                          fontWeight: FontWeight.w700,
-                        ),
+                      color: foreground.withValues(alpha: .82),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
               ],
             ),
@@ -114,7 +116,8 @@ class _RingPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = Offset(stroke / 2, stroke / 2) &
+    final rect =
+        Offset(stroke / 2, stroke / 2) &
         Size(size.width - stroke, size.height - stroke);
     final base = Paint()
       ..color = track
@@ -127,13 +130,7 @@ class _RingPainter extends CustomPainter {
       ..strokeWidth = stroke
       ..strokeCap = StrokeCap.round;
     canvas.drawArc(rect, 0, math.pi * 2, false, base);
-    canvas.drawArc(
-      rect,
-      -math.pi / 2,
-      math.pi * 2 * progress,
-      false,
-      active,
-    );
+    canvas.drawArc(rect, -math.pi / 2, math.pi * 2 * progress, false, active);
   }
 
   @override
@@ -212,7 +209,9 @@ class EmptyState extends StatelessWidget {
               width: 62,
               height: 62,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: .10),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: .10),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Icon(
@@ -231,7 +230,10 @@ class EmptyState extends StatelessWidget {
             ),
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 16),
-              FilledButton.tonal(onPressed: onAction, child: Text(actionLabel!)),
+              FilledButton.tonal(
+                onPressed: onAction,
+                child: Text(actionLabel!),
+              ),
             ],
           ],
         ),
@@ -250,9 +252,10 @@ class SkeletonCard extends StatefulWidget {
 
 class _SkeletonCardState extends State<SkeletonCard>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))
-        ..repeat();
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1200),
+  )..repeat();
 
   @override
   void dispose() {
@@ -263,7 +266,9 @@ class _SkeletonCardState extends State<SkeletonCard>
   @override
   Widget build(BuildContext context) {
     final base = Theme.of(context).colorScheme.onSurface.withValues(alpha: .05);
-    final bright = Theme.of(context).colorScheme.onSurface.withValues(alpha: .10);
+    final bright = Theme.of(
+      context,
+    ).colorScheme.onSurface.withValues(alpha: .10);
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
@@ -284,10 +289,10 @@ class _SkeletonCardState extends State<SkeletonCard>
 }
 
 Color priorityColor(String value) => switch (value) {
-      'high' => RitmoColors.danger,
-      'medium' => RitmoColors.amber,
-      _ => RitmoColors.mint,
-    };
+  'high' => RitmoColors.danger,
+  'medium' => RitmoColors.amber,
+  _ => RitmoColors.mint,
+};
 
 IconData categoryIcon(String category) {
   final c = category.toLowerCase();
@@ -326,7 +331,9 @@ class TaskCard extends StatelessWidget {
     final done = task.status == 'done';
     final effective = task.effectivePriority(today);
     final body = AnimatedContainer(
-      duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 260),
+      duration: reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 260),
       curve: Curves.easeOutCubic,
       decoration: BoxDecoration(
         color: done
@@ -346,12 +353,18 @@ class TaskCard extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(12, 11, 8, 11),
           child: Row(
             children: [
-              _AnimatedCheck(done: done, onTap: onToggle, reduceMotion: reduceMotion),
+              _AnimatedCheck(
+                done: done,
+                onTap: onToggle,
+                reduceMotion: reduceMotion,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: AnimatedOpacity(
                   opacity: done ? .52 : 1,
-                  duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 220),
+                  duration: reduceMotion
+                      ? Duration.zero
+                      : const Duration(milliseconds: 220),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -359,8 +372,11 @@ class TaskCard extends StatelessWidget {
                         task.title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              decoration: done ? TextDecoration.lineThrough : null,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              decoration: done
+                                  ? TextDecoration.lineThrough
+                                  : null,
                             ),
                       ),
                       const SizedBox(height: 5),
@@ -370,7 +386,10 @@ class TaskCard extends StatelessWidget {
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           if (task.time.isNotEmpty)
-                            _MiniMeta(icon: Icons.schedule_rounded, text: task.time),
+                            _MiniMeta(
+                              icon: Icons.schedule_rounded,
+                              text: task.time,
+                            ),
                           _MiniMeta(
                             icon: categoryIcon(task.category),
                             text: task.category,
@@ -395,12 +414,11 @@ class TaskCard extends StatelessWidget {
                             value: task.subtasks.isEmpty
                                 ? 0
                                 : task.subtasks.where((e) => e.done).length /
-                                    task.subtasks.length,
+                                      task.subtasks.length,
                             minHeight: 4,
-                            backgroundColor: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withValues(alpha: .06),
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: .06),
                           ),
                         ),
                       ],
@@ -425,7 +443,10 @@ class TaskCard extends StatelessWidget {
                       visualDensity: VisualDensity.compact,
                       tooltip: 'Iniciar foco',
                       onPressed: onFocus,
-                      icon: const Icon(Icons.center_focus_strong_rounded, size: 20),
+                      icon: const Icon(
+                        Icons.center_focus_strong_rounded,
+                        size: 20,
+                      ),
                     ),
                   ],
                 ],
@@ -479,27 +500,30 @@ class _SwipeBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: .18),
-          borderRadius: BorderRadius.circular(18),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: .18),
+      borderRadius: BorderRadius.circular(18),
+    ),
+    alignment: alignment,
+    padding: const EdgeInsets.symmetric(horizontal: 20),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (alignment == Alignment.centerLeft) ...[
+          Icon(icon, color: color),
+          const SizedBox(width: 8),
+        ],
+        Text(
+          label,
+          style: TextStyle(color: color, fontWeight: FontWeight.w800),
         ),
-        alignment: alignment,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (alignment == Alignment.centerLeft) ...[
-              Icon(icon, color: color),
-              const SizedBox(width: 8),
-            ],
-            Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w800)),
-            if (alignment == Alignment.centerRight) ...[
-              const SizedBox(width: 8),
-              Icon(icon, color: color),
-            ],
-          ],
-        ),
-      );
+        if (alignment == Alignment.centerRight) ...[
+          const SizedBox(width: 8),
+          Icon(icon, color: color),
+        ],
+      ],
+    ),
+  );
 }
 
 class _AnimatedCheck extends StatelessWidget {
@@ -518,22 +542,30 @@ class _AnimatedCheck extends StatelessWidget {
       radius: 26,
       onTap: onTap,
       child: AnimatedContainer(
-        duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 240),
+        duration: reduceMotion
+            ? Duration.zero
+            : const Duration(milliseconds: 240),
         curve: Curves.easeOutBack,
         width: 30,
         height: 30,
         decoration: BoxDecoration(
-          color: done ? Theme.of(context).colorScheme.primary : Colors.transparent,
+          color: done
+              ? Theme.of(context).colorScheme.primary
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             width: 2,
             color: done
                 ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).colorScheme.onSurface.withValues(alpha: .22),
+                : Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: .22),
           ),
         ),
         child: AnimatedScale(
-          duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 220),
+          duration: reduceMotion
+              ? Duration.zero
+              : const Duration(milliseconds: 220),
           scale: done ? 1 : .5,
           child: done
               ? Icon(
@@ -555,17 +587,17 @@ class _MiniMeta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 13,
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .48),
-          ),
-          const SizedBox(width: 3),
-          Text(text, style: Theme.of(context).textTheme.bodySmall),
-        ],
-      );
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(
+        icon,
+        size: 13,
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .48),
+      ),
+      const SizedBox(width: 3),
+      Text(text, style: Theme.of(context).textTheme.bodySmall),
+    ],
+  );
 }
 
 class RoutineCard extends StatelessWidget {
@@ -587,13 +619,17 @@ class RoutineCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final done = routine.doneOn(date);
     return AnimatedContainer(
-      duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 250),
+      duration: reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 250),
       decoration: BoxDecoration(
         color: done
             ? Theme.of(context).colorScheme.primary.withValues(alpha: .055)
             : Theme.of(context).cardTheme.color,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Theme.of(context).dividerColor.withValues(alpha: .6)),
+        border: Border.all(
+          color: Theme.of(context).dividerColor.withValues(alpha: .6),
+        ),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
@@ -605,13 +641,17 @@ class RoutineCard extends StatelessWidget {
               InkResponse(
                 onTap: onToggle,
                 child: AnimatedContainer(
-                  duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 220),
+                  duration: reduceMotion
+                      ? Duration.zero
+                      : const Duration(milliseconds: 220),
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
                     color: done
                         ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.primary.withValues(alpha: .10),
+                        : Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: .10),
                     borderRadius: BorderRadius.circular(13),
                   ),
                   child: Icon(
@@ -626,15 +666,20 @@ class RoutineCard extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: AnimatedOpacity(
-                  duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 220),
+                  duration: reduceMotion
+                      ? Duration.zero
+                      : const Duration(milliseconds: 220),
                   opacity: done ? .55 : 1,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         routine.title,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              decoration: done ? TextDecoration.lineThrough : null,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              decoration: done
+                                  ? TextDecoration.lineThrough
+                                  : null,
                             ),
                       ),
                       const SizedBox(height: 4),
@@ -651,8 +696,12 @@ class RoutineCard extends StatelessWidget {
                   ),
                 ),
               ),
-              Icon(Icons.chevron_right_rounded,
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .35)),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: .35),
+              ),
             ],
           ),
         ),
@@ -690,8 +739,10 @@ class WeeklyBars extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Text('${values[index]}',
-                      style: Theme.of(context).textTheme.bodySmall),
+                  Text(
+                    '${values[index]}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                   const SizedBox(height: 5),
                   Expanded(
                     child: Align(
@@ -716,8 +767,8 @@ class WeeklyBars extends StatelessWidget {
                   Text(
                     labels[index],
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
@@ -740,7 +791,9 @@ class Heatmap30 extends StatelessWidget {
       spacing: 6,
       runSpacing: 6,
       children: values.map((v) {
-        final alpha = v <= 0 ? .055 : (.14 + (v / 100) * .74).clamp(.14, .88).toDouble();
+        final alpha = v <= 0
+            ? .055
+            : (.14 + (v / 100) * .74).clamp(.14, .88).toDouble();
         return Tooltip(
           message: '$v%',
           child: AnimatedContainer(

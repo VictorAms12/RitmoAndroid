@@ -29,7 +29,9 @@ class _SettingsPageState extends State<SettingsPage> {
     super.initState();
     final s = widget.state;
     _name = TextEditingController(text: s.userName);
-    _capacity = TextEditingController(text: '${s.plannerCapacityMinutes ~/ 60}');
+    _capacity = TextEditingController(
+      text: '${s.plannerCapacityMinutes ~/ 60}',
+    );
     _startHour = TextEditingController(text: '${s.plannerStartHour}');
     _endHour = TextEditingController(text: '${s.plannerEndHour}');
   }
@@ -46,7 +48,9 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _savePlanner() async {
     final capacityHours = int.tryParse(_capacity.text) ?? 6;
     final start = (int.tryParse(_startHour.text) ?? 8).clamp(0, 23).toInt();
-    final end = (int.tryParse(_endHour.text) ?? 22).clamp(start + 1, 24).toInt();
+    final end = (int.tryParse(_endHour.text) ?? 22)
+        .clamp(start + 1, 24)
+        .toInt();
     final capacity = capacityHours.clamp(1, 16).toInt();
     await widget.state.setPlannerSettings(
       startHour: start,
@@ -143,7 +147,9 @@ class _SettingsPageState extends State<SettingsPage> {
               onChanged: state.setHaptics,
               contentPadding: EdgeInsets.zero,
               title: const Text('Feedback tátil'),
-              subtitle: const Text('Vibração leve ao concluir e executar ações importantes.'),
+              subtitle: const Text(
+                'Vibração leve ao concluir e executar ações importantes.',
+              ),
               secondary: const Icon(Icons.vibration_rounded),
             ),
           ],
@@ -291,7 +297,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.flutter_dash_rounded),
-              title: const Text('Ritmo 3.4.2'),
+              title: const Text('Ritmo 3.4.3'),
               subtitle: const Text(
                 'Android + Windows · Inbox, busca global, timeline e Smart Planner 2.0 · dados locais.',
               ),
@@ -324,22 +330,26 @@ class _SettingsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  Icon(icon, size: 19, color: Theme.of(context).colorScheme.primary),
-                  const SizedBox(width: 8),
-                  Text(title, style: Theme.of(context).textTheme.titleMedium),
-                ],
+              Icon(
+                icon,
+                size: 19,
+                color: Theme.of(context).colorScheme.primary,
               ),
-              const SizedBox(height: 14),
-              ...children,
+              const SizedBox(width: 8),
+              Text(title, style: Theme.of(context).textTheme.titleMedium),
             ],
           ),
-        ),
-      );
+          const SizedBox(height: 14),
+          ...children,
+        ],
+      ),
+    ),
+  );
 }

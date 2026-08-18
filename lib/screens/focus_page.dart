@@ -86,7 +86,9 @@ class _FocusPageState extends State<FocusPage> {
     setState(() => _finishing = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(auto ? 'Sessão concluída. Bom trabalho.' : 'Sessão registrada.'),
+        content: Text(
+          auto ? 'Sessão concluída. Bom trabalho.' : 'Sessão registrada.',
+        ),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -102,8 +104,13 @@ class _FocusPageState extends State<FocusPage> {
   Widget build(BuildContext context) {
     final state = widget.state;
     final active = state.focusActive;
-    final remaining = active ? state.currentFocusRemainingSeconds() : _minutes * 60;
-    final total = math.max(1, state.focusActive ? state.focusPlannedMinutes * 60 : _minutes * 60);
+    final remaining = active
+        ? state.currentFocusRemainingSeconds()
+        : _minutes * 60;
+    final total = math.max(
+      1,
+      state.focusActive ? state.focusPlannedMinutes * 60 : _minutes * 60,
+    );
     final progress = (1 - remaining / total).clamp(0.0, 1.0).toDouble();
 
     return Scaffold(
@@ -114,7 +121,8 @@ class _FocusPageState extends State<FocusPage> {
             IconButton(
               tooltip: 'Encerrar sem registrar',
               onPressed: () async {
-                final ok = await showDialog<bool>(
+                final ok =
+                    await showDialog<bool>(
                       context: context,
                       builder: (context) => AlertDialog(
                         title: const Text('Sair do foco?'),
@@ -146,7 +154,9 @@ class _FocusPageState extends State<FocusPage> {
       body: SafeArea(
         top: false,
         child: AnimatedSwitcher(
-          duration: state.reduceMotion ? Duration.zero : const Duration(milliseconds: 300),
+          duration: state.reduceMotion
+              ? Duration.zero
+              : const Duration(milliseconds: 300),
           child: active
               ? _ActiveFocus(
                   key: const ValueKey('active'),
@@ -158,7 +168,8 @@ class _FocusPageState extends State<FocusPage> {
                   completeTask: _completeTask,
                   hasLinkedTask: state.focusTaskId != 0,
                   reduceMotion: state.reduceMotion,
-                  onCompleteTaskChanged: (v) => setState(() => _completeTask = v),
+                  onCompleteTaskChanged: (v) =>
+                      setState(() => _completeTask = v),
                   onPauseResume: () async {
                     if (state.focusRunning) {
                       await state.pauseFocus(remaining);
@@ -218,10 +229,9 @@ class _FocusSetup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final openTasks = state.data.tasks
-        .where((e) => !e.inbox && e.status != 'done')
-        .toList()
-      ..sort((a, b) => a.date.compareTo(b.date));
+    final openTasks =
+        state.data.tasks.where((e) => !e.inbox && e.status != 'done').toList()
+          ..sort((a, b) => a.date.compareTo(b.date));
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
       children: [
@@ -311,8 +321,8 @@ class _FocusSetup extends StatelessWidget {
             final label = value == 25
                 ? 'Pomodoro 25'
                 : value == 50
-                    ? 'Foco 50'
-                    : 'Duração da tarefa';
+                ? 'Foco 50'
+                : 'Duração da tarefa';
             onPreset(value, label);
           },
         ),
@@ -368,10 +378,10 @@ class _ActiveFocus extends StatelessWidget {
           mode.toUpperCase(),
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                letterSpacing: 1.2,
-                color: primary,
-                fontWeight: FontWeight.w800,
-              ),
+            letterSpacing: 1.2,
+            color: primary,
+            fontWeight: FontWeight.w800,
+          ),
         ),
         const SizedBox(height: 7),
         Text(
@@ -383,7 +393,9 @@ class _ActiveFocus extends StatelessWidget {
         Center(
           child: TweenAnimationBuilder<double>(
             tween: Tween(begin: 0, end: progress),
-            duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 240),
+            duration: reduceMotion
+                ? Duration.zero
+                : const Duration(milliseconds: 240),
             curve: Curves.easeOutCubic,
             builder: (context, value, _) {
               return SizedBox(
@@ -401,9 +413,12 @@ class _ActiveFocus extends StatelessWidget {
                       children: [
                         Text(
                           _format(remaining),
-                          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                          style: Theme.of(context).textTheme.headlineLarge
+                              ?.copyWith(
                                 fontSize: 48,
-                                fontFeatures: const [FontFeature.tabularFigures()],
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures(),
+                                ],
                               ),
                         ),
                         const SizedBox(height: 5),

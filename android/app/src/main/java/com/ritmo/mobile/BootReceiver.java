@@ -8,7 +8,12 @@ import android.content.SharedPreferences;
 public class BootReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (!Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) return;
+        String action = intent == null ? null : intent.getAction();
+        boolean bootLike = Intent.ACTION_BOOT_COMPLETED.equals(action)
+                || Intent.ACTION_MY_PACKAGE_REPLACED.equals(action);
+        boolean clockChanged = Intent.ACTION_TIME_CHANGED.equals(action)
+                || Intent.ACTION_TIMEZONE_CHANGED.equals(action);
+        if (!bootLike && !clockChanged) return;
 
         try {
             Store store = new Store(context);
@@ -16,6 +21,7 @@ public class BootReceiver extends BroadcastReceiver {
             RoutineReminderScheduler.rescheduleAll(context, store);
         } catch (Throwable ignored) { }
 
+        if (!bootLike) return;
         try {
             SharedPreferences focus =
                     context.getSharedPreferences("ritmo_focus", Context.MODE_PRIVATE);

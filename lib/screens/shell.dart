@@ -22,10 +22,35 @@ class RitmoShell extends StatefulWidget {
 class _RitmoShellState extends State<RitmoShell> {
   int _index = 0;
   bool _tabTransitioning = false;
+  late bool _reduceMotion;
   late final PageController _pages = PageController();
 
   @override
+  void initState() {
+    super.initState();
+    _reduceMotion = widget.state.reduceMotion;
+    widget.state.addListener(_onStateChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant RitmoShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.state, widget.state)) {
+      oldWidget.state.removeListener(_onStateChanged);
+      _reduceMotion = widget.state.reduceMotion;
+      widget.state.addListener(_onStateChanged);
+    }
+  }
+
+  void _onStateChanged() {
+    final next = widget.state.reduceMotion;
+    if (next == _reduceMotion || !mounted) return;
+    setState(() => _reduceMotion = next);
+  }
+
+  @override
   void dispose() {
+    widget.state.removeListener(_onStateChanged);
     _pages.dispose();
     super.dispose();
   }
@@ -35,7 +60,7 @@ class _RitmoShellState extends State<RitmoShell> {
 
     final current = (_pages.page ?? _index.toDouble()).round();
 
-    if (widget.state.reduceMotion) {
+    if (_reduceMotion) {
       setState(() => _index = value);
       _pages.jumpToPage(value);
       return;
@@ -124,32 +149,47 @@ class _RitmoShellState extends State<RitmoShell> {
   Widget build(BuildContext context) {
     final state = widget.state;
     final pages = [
-      TodayPage(
+      _StatePage(
         state: state,
-        onAdd: _showAddMenu,
-        onOpenPlanner: () => _openOrganizer(tab: 0),
+        builder: (_) => TodayPage(
+          state: state,
+          onAdd: _showAddMenu,
+          onOpenPlanner: () => _openOrganizer(tab: 0),
+        ),
       ),
-      CalendarPage(state: state),
-      ProgressPage(state: state),
-      SettingsPage(
+      _StatePage(
         state: state,
-        onOpenPlanner: () => _openOrganizer(tab: 0),
+        builder: (_) => CalendarPage(state: state),
+      ),
+      _StatePage(
+        state: state,
+        builder: (_) => ProgressPage(state: state),
+      ),
+      _StatePage(
+        state: state,
+        builder: (_) => SettingsPage(
+          state: state,
+          onOpenPlanner: () => _openOrganizer(tab: 0),
+        ),
       ),
     ];
 
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final overlayStyle = (dark
-            ? SystemUiOverlayStyle.light
-            : SystemUiOverlayStyle.dark)
-        .copyWith(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
-      statusBarBrightness: dark ? Brightness.dark : Brightness.light,
-      systemNavigationBarColor:
-          dark ? const Color(0xFF111317) : Colors.white,
-      systemNavigationBarIconBrightness:
-          dark ? Brightness.light : Brightness.dark,
-    );
+    final overlayStyle =
+        (dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark)
+            .copyWith(
+              statusBarColor: Colors.transparent,
+              statusBarIconBrightness: dark
+                  ? Brightness.light
+                  : Brightness.dark,
+              statusBarBrightness: dark ? Brightness.dark : Brightness.light,
+              systemNavigationBarColor: dark
+                  ? const Color(0xFF111317)
+                  : Colors.white,
+              systemNavigationBarIconBrightness: dark
+                  ? Brightness.light
+                  : Brightness.dark,
+            );
 
     final pageView = PageView(
       controller: _pages,
@@ -226,12 +266,9 @@ class _RitmoShellState extends State<RitmoShell> {
             )
           : Scaffold(
               extendBody: true,
-              body: SafeArea(
-                top: true,
-                bottom: false,
-                child: pageView,
-              ),
-              floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+              body: SafeArea(top: true, bottom: false, child: pageView),
+              floatingActionButtonLocation:
+                  FloatingActionButtonLocation.centerDocked,
               floatingActionButton: Semantics(
                 button: true,
                 label: 'Adicionar',
@@ -244,9 +281,24 @@ class _RitmoShellState extends State<RitmoShell> {
               bottomNavigationBar: _RitmoBottomBar(
                 index: _index,
                 onSelected: _select,
-                reduceMotion: state.reduceMotion,
+                reduceMotion: _reduceMotion,
               ),
             ),
+    );
+  }
+}
+
+class _StatePage extends StatelessWidget {
+  final AppState state;
+  final WidgetBuilder builder;
+
+  const _StatePage({required this.state, required this.builder});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: state,
+      builder: (context, _) => builder(context),
     );
   }
 }
@@ -346,14 +398,18 @@ class _NavButton extends StatelessWidget {
       onTap: onTap,
       radius: 32,
       child: AnimatedContainer(
-        duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 220),
+        duration: reduceMotion
+            ? Duration.zero
+            : const Duration(milliseconds: 220),
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             AnimatedScale(
               scale: selected ? 1.08 : 1,
-              duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 220),
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 220),
               child: Icon(selected ? activeIcon : icon, color: color, size: 23),
             ),
             const SizedBox(height: 3),
@@ -410,8 +466,10 @@ class _AddMenu extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('O que você quer fazer?',
-                        style: Theme.of(context).textTheme.headlineMedium),
+                    Text(
+                      'O que você quer fazer?',
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
                     const SizedBox(height: 3),
                     Text(
                       'Crie algo ou entre direto em uma ação rápida.',
@@ -483,8 +541,7 @@ class _AddMenu extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 18),
-          Text('Ações rápidas',
-              style: Theme.of(context).textTheme.titleMedium),
+          Text('Ações rápidas', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 9),
           Row(
             children: [
@@ -533,58 +590,58 @@ class _PrimaryCreateTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: Theme.of(context).colorScheme.primary,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(15),
-            child: Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onPrimary
-                        .withValues(alpha: .13),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(icon, color: Theme.of(context).colorScheme.onPrimary),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.onPrimary,
-                            ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onPrimary
-                                  .withValues(alpha: .75),
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.arrow_forward_rounded,
-                    color: Theme.of(context).colorScheme.onPrimary),
-              ],
+    color: Theme.of(context).colorScheme.primary,
+    borderRadius: BorderRadius.circular(20),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(15),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onPrimary.withValues(alpha: .13),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: Theme.of(context).colorScheme.onPrimary),
             ),
-          ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onPrimary.withValues(alpha: .75),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_rounded,
+              color: Theme.of(context).colorScheme.onPrimary,
+            ),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _ActionCard extends StatelessWidget {
@@ -601,26 +658,26 @@ class _ActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: Theme.of(context).colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(18),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(icon, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(height: 12),
-                Text(title, style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 2),
-                Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
-              ],
-            ),
-          ),
+    color: Theme.of(context).colorScheme.surfaceContainer,
+    borderRadius: BorderRadius.circular(18),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(height: 12),
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 2),
+            Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _QuickButton extends StatelessWidget {
@@ -635,21 +692,21 @@ class _QuickButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => OutlinedButton(
-        onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 11),
+    onPressed: onTap,
+    style: OutlinedButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 11),
+    ),
+    child: Column(
+      children: [
+        Icon(icon, size: 20),
+        const SizedBox(height: 5),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 11),
         ),
-        child: Column(
-          children: [
-            Icon(icon, size: 20),
-            const SizedBox(height: 5),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 11),
-            ),
-          ],
-        ),
-      );
+      ],
+    ),
+  );
 }

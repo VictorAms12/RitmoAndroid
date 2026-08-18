@@ -25,8 +25,9 @@ class NativeBridge {
 
   static Future<Map<String, dynamic>> loadLegacySettings() async {
     try {
-      final map =
-          await _channel.invokeMapMethod<String, dynamic>('loadLegacySettings');
+      final map = await _channel.invokeMapMethod<String, dynamic>(
+        'loadLegacySettings',
+      );
       return map ?? <String, dynamic>{};
     } on PlatformException {
       return <String, dynamic>{};
@@ -67,7 +68,9 @@ class NativeBridge {
 
   static Future<void> syncRoutineReminder(int routineId) async {
     try {
-      await _channel.invokeMethod<void>('syncRoutineReminder', {'routineId': routineId});
+      await _channel.invokeMethod<void>('syncRoutineReminder', {
+        'routineId': routineId,
+      });
     } on PlatformException {
       // A full sync still runs at startup and after planner operations.
     } on MissingPluginException {
@@ -77,8 +80,9 @@ class NativeBridge {
 
   static Future<Map<String, dynamic>> loadFocusState() async {
     try {
-      final map =
-          await _channel.invokeMapMethod<String, dynamic>('loadFocusState');
+      final map = await _channel.invokeMapMethod<String, dynamic>(
+        'loadFocusState',
+      );
       return map ?? <String, dynamic>{};
     } on PlatformException {
       return <String, dynamic>{};

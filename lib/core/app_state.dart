@@ -46,10 +46,10 @@ class AppState extends ChangeNotifier {
   String get today => isoDate(DateTime.now());
 
   ThemeMode get materialThemeMode => switch (themeMode) {
-        RitmoThemeMode.system => ThemeMode.system,
-        RitmoThemeMode.light => ThemeMode.light,
-        RitmoThemeMode.dark => ThemeMode.dark,
-      };
+    RitmoThemeMode.system => ThemeMode.system,
+    RitmoThemeMode.light => ThemeMode.light,
+    RitmoThemeMode.dark => ThemeMode.dark,
+  };
 
   Future<void> initialize() async {
     loading = true;
@@ -106,7 +106,8 @@ class AppState extends ChangeNotifier {
     }
     try {
       final decoded = jsonDecode(raw);
-      if (decoded is! Map) throw const FormatException('Formato de dados inválido');
+      if (decoded is! Map)
+        throw const FormatException('Formato de dados inválido');
       data = RitmoData.fromJson(Map<String, dynamic>.from(decoded));
       _sanitize();
     } catch (e) {
@@ -121,7 +122,8 @@ class AppState extends ChangeNotifier {
   Future<void> _loadSettings() async {
     final legacy = await NativeBridge.loadLegacySettings();
 
-    final savedTheme = await _prefs.getString('theme_mode') ??
+    final savedTheme =
+        await _prefs.getString('theme_mode') ??
         legacy['theme_mode']?.toString() ??
         'dark';
     themeMode = switch (savedTheme) {
@@ -130,36 +132,40 @@ class AppState extends ChangeNotifier {
       _ => RitmoThemeMode.dark,
     };
 
-    userName = await _prefs.getString('user_name') ??
+    userName =
+        await _prefs.getString('user_name') ??
         legacy['user_name']?.toString() ??
         '';
-    haptics = await _prefs.getBool('haptics') ??
-        (legacy['haptics'] as bool?) ??
-        true;
-    reduceMotion = await _prefs.getBool('reduce_motion') ??
+    haptics =
+        await _prefs.getBool('haptics') ?? (legacy['haptics'] as bool?) ?? true;
+    reduceMotion =
+        await _prefs.getBool('reduce_motion') ??
         (legacy['reduce_motion'] as bool?) ??
         false;
-    autoReplanOverdue = await _prefs.getBool('auto_replan') ??
+    autoReplanOverdue =
+        await _prefs.getBool('auto_replan') ??
         (legacy['autoReplanOverdue'] as bool?) ??
         false;
-    plannerStartHour = await _prefs.getInt('planner_start_hour') ??
+    plannerStartHour =
+        await _prefs.getInt('planner_start_hour') ??
         (legacy['plannerStartHour'] as num?)?.toInt() ??
         8;
-    plannerEndHour = await _prefs.getInt('planner_end_hour') ??
+    plannerEndHour =
+        await _prefs.getInt('planner_end_hour') ??
         (legacy['plannerEndHour'] as num?)?.toInt() ??
         22;
-    plannerCapacityMinutes = await _prefs.getInt('planner_capacity') ??
+    plannerCapacityMinutes =
+        await _prefs.getInt('planner_capacity') ??
         (legacy['plannerCapacityMinutes'] as num?)?.toInt() ??
         360;
-    plannerIncludeWeekend = await _prefs.getBool('planner_weekend') ??
+    plannerIncludeWeekend =
+        await _prefs.getBool('planner_weekend') ??
         (legacy['plannerIncludeWeekend'] as bool?) ??
         true;
 
     plannerStartHour = plannerStartHour.clamp(0, 23).toInt();
-    plannerEndHour =
-        plannerEndHour.clamp(plannerStartHour + 1, 24).toInt();
-    plannerCapacityMinutes =
-        plannerCapacityMinutes.clamp(60, 16 * 60).toInt();
+    plannerEndHour = plannerEndHour.clamp(plannerStartHour + 1, 24).toInt();
+    plannerCapacityMinutes = plannerCapacityMinutes.clamp(60, 16 * 60).toInt();
   }
 
   Future<void> _loadFocus() async {
@@ -180,10 +186,12 @@ class AppState extends ChangeNotifier {
         'taskId': await _prefs.getInt('focus_task_id_flutter') ?? 0,
         'title': await _prefs.getString('focus_title_flutter') ?? 'Foco livre',
         'mode': await _prefs.getString('focus_mode_flutter') ?? 'Pomodoro 25',
-        'plannedMinutes': await _prefs.getInt('focus_planned_minutes_flutter') ?? 25,
+        'plannedMinutes':
+            await _prefs.getInt('focus_planned_minutes_flutter') ?? 25,
         'startedAt': await _prefs.getInt('focus_started_at_flutter') ?? 0,
         'endAt': await _prefs.getInt('focus_end_at_flutter') ?? 0,
-        'remainingSeconds': await _prefs.getInt('focus_remaining_seconds_flutter') ?? 0,
+        'remainingSeconds':
+            await _prefs.getInt('focus_remaining_seconds_flutter') ?? 0,
       };
     }
 
@@ -192,8 +200,9 @@ class AppState extends ChangeNotifier {
     focusTaskId = (source['taskId'] as num?)?.toInt() ?? 0;
     focusTitle = source['title']?.toString() ?? 'Foco livre';
     focusMode = source['mode']?.toString() ?? 'Pomodoro 25';
-    focusPlannedMinutes =
-        ((source['plannedMinutes'] as num?)?.toInt() ?? 25).clamp(1, 1440).toInt();
+    focusPlannedMinutes = ((source['plannedMinutes'] as num?)?.toInt() ?? 25)
+        .clamp(1, 1440)
+        .toInt();
     focusStartedAt = (source['startedAt'] as num?)?.toInt() ?? 0;
     focusEndAt = (source['endAt'] as num?)?.toInt() ?? 0;
     focusRemainingSeconds = max(
@@ -206,6 +215,10 @@ class AppState extends ChangeNotifier {
         0,
         ((focusEndAt - DateTime.now().millisecondsSinceEpoch) / 1000).ceil(),
       );
+    } else if (focusActive && !focusRunning && focusRemainingSeconds > 0) {
+      // Paused sessions do not have a live deadline. This also migrates stale
+      // Flutter fallback state created before 3.4.3.
+      focusEndAt = 0;
     }
   }
 
@@ -218,7 +231,10 @@ class AppState extends ChangeNotifier {
     await _prefs.setInt('focus_planned_minutes_flutter', focusPlannedMinutes);
     await _prefs.setInt('focus_started_at_flutter', focusStartedAt);
     await _prefs.setInt('focus_end_at_flutter', focusEndAt);
-    await _prefs.setInt('focus_remaining_seconds_flutter', focusRemainingSeconds);
+    await _prefs.setInt(
+      'focus_remaining_seconds_flutter',
+      focusRemainingSeconds,
+    );
   }
 
   Future<void> _clearFocusFallback() async {
@@ -238,13 +254,17 @@ class AppState extends ChangeNotifier {
   }
 
   Future<bool> _recoverExpiredFocusIfNeeded() async {
-    if (!focusActive || !focusRunning || focusEndAt <= 0) return false;
+    if (!focusActive || focusEndAt <= 0) return false;
 
     final now = DateTime.now().millisecondsSinceEpoch;
     if (focusEndAt > now) {
-      focusRemainingSeconds = max(0, ((focusEndAt - now) / 1000).ceil());
+      if (focusRunning) {
+        focusRemainingSeconds = max(0, ((focusEndAt - now) / 1000).ceil());
+      }
       return false;
     }
+
+    final completedAt = focusEndAt;
     focusRemainingSeconds = 0;
 
     final exists = data.focusSessions.any(
@@ -254,16 +274,18 @@ class AppState extends ChangeNotifier {
           session.title == focusTitle,
     );
     if (!exists && focusPlannedMinutes > 0) {
-      data.focusSessions.add(FocusSession(
-        id: DateTime.now().microsecondsSinceEpoch,
-        taskId: focusTaskId,
-        title: focusTitle,
-        date: today,
-        mode: focusMode,
-        plannedMinutes: focusPlannedMinutes,
-        actualMinutes: focusPlannedMinutes,
-        startedAt: focusStartedAt,
-      ));
+      data.focusSessions.add(
+        FocusSession(
+          id: DateTime.now().microsecondsSinceEpoch,
+          taskId: focusTaskId,
+          title: focusTitle,
+          date: isoDate(DateTime.fromMillisecondsSinceEpoch(completedAt)),
+          mode: focusMode,
+          plannedMinutes: focusPlannedMinutes,
+          actualMinutes: focusPlannedMinutes,
+          startedAt: focusStartedAt,
+        ),
+      );
     }
 
     focusActive = false;
@@ -279,7 +301,8 @@ class AppState extends ChangeNotifier {
     for (final task in data.tasks) {
       if (task.title.trim().isEmpty) task.title = 'Tarefa';
       if (!isValidIsoDate(task.date)) task.date = today;
-      if (!isValidIsoDate(task.deadline) || task.deadline.compareTo(task.date) < 0) {
+      if (!isValidIsoDate(task.deadline) ||
+          task.deadline.compareTo(task.date) < 0) {
         task.deadline = task.date;
       }
       task.minutes = task.minutes.clamp(0, 1440).toInt();
@@ -289,15 +312,24 @@ class AppState extends ChangeNotifier {
       if (!const {'auto', 'high', 'medium', 'low'}.contains(task.priority)) {
         task.priority = 'low';
       }
-      if (!const {'none', 'daily', 'weekdays', 'weekly', 'monthly'}
-          .contains(task.recurrence)) {
+      if (!const {
+        'none',
+        'daily',
+        'weekdays',
+        'weekly',
+        'monthly',
+      }.contains(task.recurrence)) {
         task.recurrence = 'none';
       }
       if (!const {'low', 'medium', 'high'}.contains(task.energy)) {
         task.energy = 'medium';
       }
-      if (!const {'any', 'morning', 'afternoon', 'evening'}
-          .contains(task.preferredPeriod)) {
+      if (!const {
+        'any',
+        'morning',
+        'afternoon',
+        'evening',
+      }.contains(task.preferredPeriod)) {
         task.preferredPeriod = 'any';
       }
       if (task.time.isNotEmpty &&
@@ -313,8 +345,12 @@ class AppState extends ChangeNotifier {
       if (routine.title.trim().isEmpty) routine.title = 'Hábito';
       if (!isValidIsoDate(routine.startDate)) routine.startDate = today;
       routine.minutes = routine.minutes.clamp(0, 1440).toInt();
-      if (!const {'daily', 'weekdays', 'weekly', 'custom'}
-          .contains(routine.frequency)) {
+      if (!const {
+        'daily',
+        'weekdays',
+        'weekly',
+        'custom',
+      }.contains(routine.frequency)) {
         routine.frequency = 'daily';
       }
       if (routine.time.isNotEmpty &&
@@ -327,20 +363,26 @@ class AppState extends ChangeNotifier {
       if (task.projectId != 0 && !projectIds.contains(task.projectId)) {
         task.projectId = 0;
       }
-      task.reminderMinutes = task.reminderMinutes.clamp(-1, 7 * 24 * 60).toInt();
+      task.reminderMinutes = task.reminderMinutes
+          .clamp(-1, 7 * 24 * 60)
+          .toInt();
     }
     for (final routine in data.routines) {
-      routine.reminderMinutes = routine.reminderMinutes.clamp(-1, 7 * 24 * 60).toInt();
-      routine.doneDates = routine.doneDates
-          .where(isValidIsoDate)
-          .where((date) => date.compareTo(routine.startDate) >= 0)
-          .toSet()
-          .toList()
-        ..sort();
+      routine.reminderMinutes = routine.reminderMinutes
+          .clamp(-1, 7 * 24 * 60)
+          .toInt();
+      routine.doneDates =
+          routine.doneDates
+              .where(isValidIsoDate)
+              .where((date) => date.compareTo(routine.startDate) >= 0)
+              .toSet()
+              .toList()
+            ..sort();
     }
     for (final project in data.projects) {
       if (project.title.trim().isEmpty) project.title = 'Projeto';
-      if (project.targetDate.isNotEmpty && !isValidIsoDate(project.targetDate)) {
+      if (project.targetDate.isNotEmpty &&
+          !isValidIsoDate(project.targetDate)) {
         project.targetDate = '';
       }
     }
@@ -521,15 +563,17 @@ class AppState extends ChangeNotifier {
   }
 
   int overdueCount() => data.tasks
-      .where((e) =>
-          !e.inbox && e.status != 'done' && e.date.compareTo(today) < 0)
+      .where(
+        (e) => !e.inbox && e.status != 'done' && e.date.compareTo(today) < 0,
+      )
       .length;
 
   int totalCompletedLast7() {
     final start = addDaysIso(today, -6);
     return data.completions
         .where(
-            (e) => e.date.compareTo(start) >= 0 && e.date.compareTo(today) <= 0)
+          (e) => e.date.compareTo(start) >= 0 && e.date.compareTo(today) <= 0,
+        )
         .length;
   }
 
@@ -537,7 +581,8 @@ class AppState extends ChangeNotifier {
     final start = addDaysIso(today, -6);
     return data.focusSessions
         .where(
-            (e) => e.date.compareTo(start) >= 0 && e.date.compareTo(today) <= 0)
+          (e) => e.date.compareTo(start) >= 0 && e.date.compareTo(today) <= 0,
+        )
         .fold(0, (sum, e) => sum + e.actualMinutes);
   }
 
@@ -562,20 +607,24 @@ class AppState extends ChangeNotifier {
     feedback();
     if (task.status == 'done') {
       task.status = 'todo';
-      data.completions
-          .removeWhere((e) => e.taskId == task.id && e.date == task.date);
+      data.completions.removeWhere(
+        (e) => e.taskId == task.id && e.date == task.date,
+      );
     } else {
       task.status = 'done';
-      final exists = data.completions
-          .any((e) => e.taskId == task.id && e.date == task.date);
+      final exists = data.completions.any(
+        (e) => e.taskId == task.id && e.date == task.date,
+      );
       if (!exists) {
-        data.completions.add(CompletionItem(
-          taskId: task.id,
-          title: task.title,
-          date: task.date,
-          category: task.category,
-          minutes: task.minutes,
-        ));
+        data.completions.add(
+          CompletionItem(
+            taskId: task.id,
+            title: task.title,
+            date: task.date,
+            category: task.category,
+            minutes: task.minutes,
+          ),
+        );
       }
     }
     notifyListeners();
@@ -592,17 +641,20 @@ class AppState extends ChangeNotifier {
         (e) => e.taskId == task.id && e.date == task.date,
       );
       if (!exists) {
-        data.completions.add(CompletionItem(
-          taskId: task.id,
-          title: task.title,
-          date: task.date,
-          category: task.category,
-          minutes: task.minutes,
-        ));
+        data.completions.add(
+          CompletionItem(
+            taskId: task.id,
+            title: task.title,
+            date: task.date,
+            category: task.category,
+            minutes: task.minutes,
+          ),
+        );
       }
     } else if (wasDone && status != 'done') {
-      data.completions
-          .removeWhere((e) => e.taskId == task.id && e.date == task.date);
+      data.completions.removeWhere(
+        (e) => e.taskId == task.id && e.date == task.date,
+      );
     }
     notifyListeners();
     await save(syncReminders: false);
@@ -644,13 +696,15 @@ class AppState extends ChangeNotifier {
         (e) => e.taskId == task.id && e.date == task.date,
       );
       if (!exists) {
-        data.completions.add(CompletionItem(
-          taskId: task.id,
-          title: task.title,
-          date: task.date,
-          category: task.category,
-          minutes: task.minutes,
-        ));
+        data.completions.add(
+          CompletionItem(
+            taskId: task.id,
+            title: task.title,
+            date: task.date,
+            category: task.category,
+            minutes: task.minutes,
+          ),
+        );
       }
     }
 
@@ -852,8 +906,7 @@ class AppState extends ChangeNotifier {
     }
     d = d.add(const Duration(days: 1));
     if (recurrence == 'weekdays') {
-      while (d.weekday == DateTime.saturday ||
-          d.weekday == DateTime.sunday) {
+      while (d.weekday == DateTime.saturday || d.weekday == DateTime.sunday) {
         d = d.add(const Duration(days: 1));
       }
     }
@@ -868,7 +921,9 @@ class AppState extends ChangeNotifier {
     feedback();
     final safeMinutes = plannedMinutes.clamp(1, 1440).toInt();
     focusTaskId = task?.id ?? 0;
-    focusTitle = task?.title.trim().isNotEmpty == true ? task!.title.trim() : 'Foco livre';
+    focusTitle = task?.title.trim().isNotEmpty == true
+        ? task!.title.trim()
+        : 'Foco livre';
     focusMode = mode.trim().isEmpty ? 'Foco' : mode.trim();
     focusPlannedMinutes = safeMinutes;
     focusStartedAt = DateTime.now().millisecondsSinceEpoch;
@@ -880,7 +935,7 @@ class AppState extends ChangeNotifier {
     await NativeBridge.startFocus(
       taskId: focusTaskId,
       title: focusTitle,
-      mode: mode,
+      mode: focusMode,
       plannedMinutes: safeMinutes,
       startedAt: focusStartedAt,
       endAt: focusEndAt,
@@ -889,9 +944,12 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> pauseFocus(int remainingSeconds) async {
-    focusRemainingSeconds = remainingSeconds.clamp(0, focusPlannedMinutes * 60).toInt();
+    focusRemainingSeconds = remainingSeconds
+        .clamp(0, focusPlannedMinutes * 60)
+        .toInt();
     focusRunning = false;
     focusActive = true;
+    focusEndAt = 0;
     notifyListeners();
     await NativeBridge.pauseFocus(
       taskId: focusTaskId,
@@ -941,16 +999,18 @@ class AppState extends ChangeNotifier {
 
     // Do not create a fake one-minute session when focus is stopped instantly.
     if (actual > 0) {
-      data.focusSessions.add(FocusSession(
-        id: DateTime.now().microsecondsSinceEpoch,
-        taskId: focusTaskId,
-        title: focusTitle,
-        date: today,
-        mode: focusMode,
-        plannedMinutes: focusPlannedMinutes,
-        actualMinutes: actual,
-        startedAt: focusStartedAt,
-      ));
+      data.focusSessions.add(
+        FocusSession(
+          id: DateTime.now().microsecondsSinceEpoch,
+          taskId: focusTaskId,
+          title: focusTitle,
+          date: today,
+          mode: focusMode,
+          plannedMinutes: focusPlannedMinutes,
+          actualMinutes: actual,
+          startedAt: focusStartedAt,
+        ),
+      );
     }
 
     if (completeTask && focusTaskId != 0) {
@@ -961,13 +1021,15 @@ class AppState extends ChangeNotifier {
           (e) => e.taskId == task.id && e.date == task.date,
         );
         if (!exists) {
-          data.completions.add(CompletionItem(
-            taskId: task.id,
-            title: task.title,
-            date: task.date,
-            category: task.category,
-            minutes: task.minutes,
-          ));
+          data.completions.add(
+            CompletionItem(
+              taskId: task.id,
+              title: task.title,
+              date: task.date,
+              category: task.category,
+              minutes: task.minutes,
+            ),
+          );
         }
       }
     }
@@ -1000,15 +1062,17 @@ class AppState extends ChangeNotifier {
     bool moveFlexibleToTomorrow = false,
   }) async {
     data.dayReviews.removeWhere((e) => e.date == today);
-    data.dayReviews.add(DayReview(
-      date: today,
-      mood: mood,
-      note: note.trim(),
-      doneCount: doneCountOn(today),
-      pendingCount: tasksOn(today).where((e) => e.status != 'done').length,
-      focusMinutes: focusMinutesOn(today),
-      createdAt: DateTime.now().millisecondsSinceEpoch,
-    ));
+    data.dayReviews.add(
+      DayReview(
+        date: today,
+        mood: mood,
+        note: note.trim(),
+        doneCount: doneCountOn(today),
+        pendingCount: tasksOn(today).where((e) => e.status != 'done').length,
+        focusMinutes: focusMinutesOn(today),
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+      ),
+    );
 
     if (moveFlexibleToTomorrow) {
       final tomorrow = addDaysIso(today, 1);

@@ -68,7 +68,7 @@ class _SubtaskDraft {
   bool done;
 
   _SubtaskDraft({required this.id, required String title, this.done = false})
-      : controller = TextEditingController(text: title);
+    : controller = TextEditingController(text: title);
 
   void dispose() => controller.dispose();
 }
@@ -114,8 +114,12 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     final t = widget.original;
     _title = TextEditingController(text: t?.title ?? '');
     _description = TextEditingController(text: t?.description ?? '');
-    _minutes = TextEditingController(text: '${t?.minutes ?? (widget.commitment ? 60 : 30)}');
-    _date = t?.inbox == true ? widget.state.today : (t?.date ?? widget.initialDate ?? widget.state.today);
+    _minutes = TextEditingController(
+      text: '${t?.minutes ?? (widget.commitment ? 60 : 30)}',
+    );
+    _date = t?.inbox == true
+        ? widget.state.today
+        : (t?.date ?? widget.initialDate ?? widget.state.today);
     _deadline = t?.inbox == true ? widget.state.today : (t?.deadline ?? _date);
     _time = t?.time ?? '';
     _priority = t?.priority ?? (widget.commitment ? 'medium' : 'auto');
@@ -159,12 +163,16 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
     }
     if (!_inbox && _reminder >= 0 && _time.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Defina um horário para usar um lembrete.')),
+        const SnackBar(
+          content: Text('Defina um horário para usar um lembrete.'),
+        ),
       );
       return;
     }
     final original = widget.original;
-    final duration = (int.tryParse(_minutes.text.trim()) ?? 30).clamp(0, 1440).toInt();
+    final duration = (int.tryParse(_minutes.text.trim()) ?? 30)
+        .clamp(0, 1440)
+        .toInt();
     final result = TaskItem(
       id: original?.id ?? DateTime.now().microsecondsSinceEpoch,
       projectId: _projectId,
@@ -172,7 +180,9 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
       description: _description.text.trim(),
       date: _inbox ? '2999-12-31' : _date,
       time: _inbox ? '' : _time,
-      deadline: _inbox ? '2999-12-31' : (_deadline.compareTo(_date) < 0 ? _date : _deadline),
+      deadline: _inbox
+          ? '2999-12-31'
+          : (_deadline.compareTo(_date) < 0 ? _date : _deadline),
       priority: _priority,
       minutes: duration,
       category: _category,
@@ -212,7 +222,9 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                 Expanded(
                   child: Text(
                     widget.original == null
-                        ? (widget.commitment ? 'Novo compromisso' : 'Nova tarefa')
+                        ? (widget.commitment
+                              ? 'Novo compromisso'
+                              : 'Nova tarefa')
                         : 'Editar tarefa',
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
@@ -222,7 +234,8 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                     tooltip: 'Excluir tarefa',
                     color: Theme.of(context).colorScheme.error,
                     onPressed: () async {
-                      final ok = await showDialog<bool>(
+                      final ok =
+                          await showDialog<bool>(
                             context: context,
                             builder: (context) => AlertDialog(
                               title: const Text('Excluir tarefa?'),
@@ -231,7 +244,8 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                               ),
                               actions: [
                                 TextButton(
-                                  onPressed: () => Navigator.pop(context, false),
+                                  onPressed: () =>
+                                      Navigator.pop(context, false),
                                   child: const Text('Cancelar'),
                                 ),
                                 FilledButton(
@@ -314,7 +328,9 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                       final value = await _pickTime(context, _time);
                       if (value != null) setState(() => _time = value);
                     },
-                    onClear: _time.isEmpty ? null : () => setState(() => _time = ''),
+                    onClear: _time.isEmpty
+                        ? null
+                        : () => setState(() => _time = ''),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -364,7 +380,10 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     initialValue: _energy,
-                    decoration: const InputDecoration(labelText: 'Energia', prefixIcon: Icon(Icons.bolt_outlined)),
+                    decoration: const InputDecoration(
+                      labelText: 'Energia',
+                      prefixIcon: Icon(Icons.bolt_outlined),
+                    ),
                     items: const [
                       DropdownMenuItem(value: 'low', child: Text('Baixa')),
                       DropdownMenuItem(value: 'medium', child: Text('Média')),
@@ -377,14 +396,22 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     initialValue: _preferredPeriod,
-                    decoration: const InputDecoration(labelText: 'Melhor período', prefixIcon: Icon(Icons.schedule_outlined)),
+                    decoration: const InputDecoration(
+                      labelText: 'Melhor período',
+                      prefixIcon: Icon(Icons.schedule_outlined),
+                    ),
                     items: const [
                       DropdownMenuItem(value: 'any', child: Text('Qualquer')),
                       DropdownMenuItem(value: 'morning', child: Text('Manhã')),
-                      DropdownMenuItem(value: 'afternoon', child: Text('Tarde')),
+                      DropdownMenuItem(
+                        value: 'afternoon',
+                        child: Text('Tarde'),
+                      ),
                       DropdownMenuItem(value: 'evening', child: Text('Noite')),
                     ],
-                    onChanged: (v) => setState(() => _preferredPeriod = v ?? _preferredPeriod),
+                    onChanged: (v) => setState(
+                      () => _preferredPeriod = v ?? _preferredPeriod,
+                    ),
                   ),
                 ),
               ],
@@ -392,10 +419,14 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
             const SizedBox(height: 10),
             SwitchListTile.adaptive(
               value: _inbox,
-              onChanged: widget.commitment ? null : (v) => setState(() => _inbox = v),
+              onChanged: widget.commitment
+                  ? null
+                  : (v) => setState(() => _inbox = v),
               contentPadding: const EdgeInsets.symmetric(horizontal: 8),
               title: const Text('Caixa de entrada'),
-              subtitle: const Text('Salva sem data e deixa para você organizar depois.'),
+              subtitle: const Text(
+                'Salva sem data e deixa para você organizar depois.',
+              ),
               secondary: const Icon(Icons.inbox_outlined),
             ),
             const SizedBox(height: 6),
@@ -408,7 +439,10 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
               items: const [
                 DropdownMenuItem(value: 'none', child: Text('Não repetir')),
                 DropdownMenuItem(value: 'daily', child: Text('Todos os dias')),
-                DropdownMenuItem(value: 'weekdays', child: Text('Segunda a sexta')),
+                DropdownMenuItem(
+                  value: 'weekdays',
+                  child: Text('Segunda a sexta'),
+                ),
                 DropdownMenuItem(value: 'weekly', child: Text('Semanal')),
                 DropdownMenuItem(value: 'monthly', child: Text('Mensal')),
               ],
@@ -438,7 +472,8 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
             ),
             const SizedBox(height: 10),
             DropdownButtonFormField<int>(
-              initialValue: widget.state.data.projects.any((p) => p.id == _projectId)
+              initialValue:
+                  widget.state.data.projects.any((p) => p.id == _projectId)
                   ? _projectId
                   : 0,
               decoration: const InputDecoration(
@@ -447,8 +482,9 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
               ),
               items: [
                 const DropdownMenuItem(value: 0, child: Text('Sem projeto')),
-                ...widget.state.data.projects
-                    .map((p) => DropdownMenuItem(value: p.id, child: Text(p.title))),
+                ...widget.state.data.projects.map(
+                  (p) => DropdownMenuItem(value: p.id, child: Text(p.title)),
+                ),
               ],
               onChanged: (v) => setState(() => _projectId = v ?? 0),
             ),
@@ -476,10 +512,12 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
                 ),
                 TextButton.icon(
                   onPressed: () => setState(
-                    () => _subtasks.add(_SubtaskDraft(
-                      id: DateTime.now().microsecondsSinceEpoch,
-                      title: '',
-                    )),
+                    () => _subtasks.add(
+                      _SubtaskDraft(
+                        id: DateTime.now().microsecondsSinceEpoch,
+                        title: '',
+                      ),
+                    ),
                   ),
                   icon: const Icon(Icons.add_rounded),
                   label: const Text('Adicionar'),
@@ -521,7 +559,9 @@ class _TaskEditorSheetState extends State<TaskEditorSheet> {
             FilledButton.icon(
               onPressed: _save,
               icon: const Icon(Icons.check_rounded),
-              label: Text(widget.original == null ? 'Criar' : 'Salvar alterações'),
+              label: Text(
+                widget.original == null ? 'Criar' : 'Salvar alterações',
+              ),
             ),
             const SizedBox(height: 8),
           ],
@@ -615,12 +655,16 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
     }
     if (_reminder >= 0 && _time.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Defina um horário para usar um lembrete.')),
+        const SnackBar(
+          content: Text('Defina um horário para usar um lembrete.'),
+        ),
       );
       return;
     }
     final old = widget.original;
-    final duration = (int.tryParse(_minutes.text.trim()) ?? 15).clamp(0, 1440).toInt();
+    final duration = (int.tryParse(_minutes.text.trim()) ?? 15)
+        .clamp(0, 1440)
+        .toInt();
     final item = RoutineItem(
       id: old?.id ?? DateTime.now().microsecondsSinceEpoch,
       title: _title.text.trim(),
@@ -660,14 +704,18 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
                   IconButton(
                     color: Theme.of(context).colorScheme.error,
                     onPressed: () async {
-                      final ok = await showDialog<bool>(
+                      final ok =
+                          await showDialog<bool>(
                             context: context,
                             builder: (context) => AlertDialog(
                               title: const Text('Excluir hábito?'),
-                              content: Text('“${widget.original!.title}” será removido.'),
+                              content: Text(
+                                '“${widget.original!.title}” será removido.',
+                              ),
                               actions: [
                                 TextButton(
-                                  onPressed: () => Navigator.pop(context, false),
+                                  onPressed: () =>
+                                      Navigator.pop(context, false),
                                   child: const Text('Cancelar'),
                                 ),
                                 FilledButton(
@@ -715,9 +763,15 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
               ),
               items: const [
                 DropdownMenuItem(value: 'daily', child: Text('Todos os dias')),
-                DropdownMenuItem(value: 'weekdays', child: Text('Segunda a sexta')),
+                DropdownMenuItem(
+                  value: 'weekdays',
+                  child: Text('Segunda a sexta'),
+                ),
                 DropdownMenuItem(value: 'weekly', child: Text('Semanal')),
-                DropdownMenuItem(value: 'custom', child: Text('Dias específicos')),
+                DropdownMenuItem(
+                  value: 'custom',
+                  child: Text('Dias específicos'),
+                ),
               ],
               onChanged: (v) => setState(() => _frequency = v ?? 'daily'),
             ),
@@ -756,7 +810,9 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
                       final value = await _pickTime(context, _time);
                       if (value != null) setState(() => _time = value);
                     },
-                    onClear: _time.isEmpty ? null : () => setState(() => _time = ''),
+                    onClear: _time.isEmpty
+                        ? null
+                        : () => setState(() => _time = ''),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -805,7 +861,9 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
             FilledButton.icon(
               onPressed: _save,
               icon: const Icon(Icons.check_rounded),
-              label: Text(widget.original == null ? 'Criar hábito' : 'Salvar alterações'),
+              label: Text(
+                widget.original == null ? 'Criar hábito' : 'Salvar alterações',
+              ),
             ),
           ],
         ),
@@ -875,12 +933,16 @@ Future<void> showGoalEditor(
               FilledButton(
                 onPressed: () async {
                   if (title.text.trim().isEmpty) return;
-                  await state.addOrUpdateGoal(GoalItem(
-                    id: goal?.id ?? DateTime.now().microsecondsSinceEpoch,
-                    title: title.text.trim(),
-                    progress: (int.tryParse(progress.text) ?? 0).clamp(0, 100).toInt(),
-                    targetDate: targetDate,
-                  ));
+                  await state.addOrUpdateGoal(
+                    GoalItem(
+                      id: goal?.id ?? DateTime.now().microsecondsSinceEpoch,
+                      title: title.text.trim(),
+                      progress: (int.tryParse(progress.text) ?? 0)
+                          .clamp(0, 100)
+                          .toInt(),
+                      targetDate: targetDate,
+                    ),
+                  );
                   if (context.mounted) Navigator.pop(context);
                 },
                 child: const Text('Salvar meta'),
@@ -969,12 +1031,14 @@ Future<void> showProjectEditor(
               FilledButton(
                 onPressed: () async {
                   if (title.text.trim().isEmpty) return;
-                  await state.addOrUpdateProject(ProjectItem(
-                    id: project?.id ?? DateTime.now().microsecondsSinceEpoch,
-                    title: title.text.trim(),
-                    description: description.text.trim(),
-                    targetDate: targetDate,
-                  ));
+                  await state.addOrUpdateProject(
+                    ProjectItem(
+                      id: project?.id ?? DateTime.now().microsecondsSinceEpoch,
+                      title: title.text.trim(),
+                      description: description.text.trim(),
+                      targetDate: targetDate,
+                    ),
+                  );
                   if (context.mounted) Navigator.pop(context);
                 },
                 child: const Text('Salvar projeto'),
@@ -1029,7 +1093,11 @@ class _PickerTile extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(12, 9, 8, 9),
           child: Row(
             children: [
-              Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+              Icon(
+                icon,
+                size: 20,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 9),
               Expanded(
                 child: Column(

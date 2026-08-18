@@ -19,14 +19,14 @@ class SmartPlannerTab extends StatelessWidget {
   }
 
   PlannerSettings _settings(int days) => PlannerSettings(
-        startHour: state.plannerStartHour,
-        endHour: state.plannerEndHour,
-        capacityMinutes: state.plannerCapacityMinutes,
-        includeWeekend: state.plannerIncludeWeekend,
-        horizonDays: days,
-        breakMinutes: 10,
-        useHistory: true,
-      );
+    startHour: state.plannerStartHour,
+    endHour: state.plannerEndHour,
+    capacityMinutes: state.plannerCapacityMinutes,
+    includeWeekend: state.plannerIncludeWeekend,
+    horizonDays: days,
+    breakMinutes: 10,
+    useHistory: true,
+  );
 
   Future<void> _preview(BuildContext context, int days) async {
     final result = PlannerService.plan(state.data, _settings(days));
@@ -41,11 +41,13 @@ class SmartPlannerTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final flexible = state.data.tasks
-        .where((e) =>
-            e.status != 'done' &&
-            !e.inbox &&
-            e.flexible &&
-            e.recurrence == 'none')
+        .where(
+          (e) =>
+              e.status != 'done' &&
+              !e.inbox &&
+              e.flexible &&
+              e.recurrence == 'none',
+        )
         .length;
     final dates = List.generate(7, (i) => addDaysIso(state.today, i));
 
@@ -63,7 +65,9 @@ class SmartPlannerTab extends StatelessWidget {
             ),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: .12),
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: .12),
             ),
           ),
           child: Column(
@@ -75,10 +79,9 @@ class SmartPlannerTab extends StatelessWidget {
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .primary
-                          .withValues(alpha: .14),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: .14),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Icon(
@@ -91,8 +94,10 @@ class SmartPlannerTab extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Smart Planner 2.0',
-                            style: Theme.of(context).textTheme.titleLarge),
+                        Text(
+                          'Smart Planner 2.0',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
                         const SizedBox(height: 4),
                         Text(
                           '$flexible flexíve${flexible == 1 ? 'l' : 'is'} · ${_fmt(state.plannerCapacityMinutes)}/dia',
@@ -115,7 +120,9 @@ class SmartPlannerTab extends StatelessWidget {
                 children: [
                   _PlannerChip(icon: Icons.flag_outlined, label: 'Prazo'),
                   _PlannerChip(
-                      icon: Icons.priority_high_rounded, label: 'Prioridade'),
+                    icon: Icons.priority_high_rounded,
+                    label: 'Prioridade',
+                  ),
                   _PlannerChip(icon: Icons.timelapse_rounded, label: 'Duração'),
                   _PlannerChip(icon: Icons.bolt_outlined, label: 'Energia'),
                   _PlannerChip(icon: Icons.history_rounded, label: 'Histórico'),
@@ -152,15 +159,15 @@ class SmartPlannerTab extends StatelessWidget {
           final color = ratio > 1
               ? RitmoColors.danger
               : ratio > .8
-                  ? RitmoColors.amber
-                  : Theme.of(context).colorScheme.primary;
+              ? RitmoColors.amber
+              : Theme.of(context).colorScheme.primary;
           final label = ratio > 1
               ? 'Sobrecarga'
               : ratio > .8
-                  ? 'Cheio'
-                  : ratio > .45
-                      ? 'Equilibrado'
-                      : 'Leve';
+              ? 'Cheio'
+              : ratio > .45
+              ? 'Equilibrado'
+              : 'Leve';
           return Padding(
             padding: const EdgeInsets.only(bottom: 9),
             child: Card(
@@ -178,9 +185,7 @@ class SmartPlannerTab extends StatelessWidget {
                                 .format(parseIso(date))
                                 .replaceAll('.', '')
                                 .toUpperCase(),
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
+                            style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(fontWeight: FontWeight.w900),
                           ),
                           Text(
@@ -196,13 +201,15 @@ class SmartPlannerTab extends StatelessWidget {
                           Row(
                             children: [
                               Expanded(
-                                child: Text(label,
-                                    style:
-                                        Theme.of(context).textTheme.bodySmall),
+                                child: Text(
+                                  label,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
                               ),
-                              Text(_fmt(value),
-                                  style:
-                                      Theme.of(context).textTheme.titleMedium),
+                              Text(
+                                _fmt(value),
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
                             ],
                           ),
                           const SizedBox(height: 7),
@@ -261,20 +268,20 @@ class _PlannerChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(99),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 15),
-            const SizedBox(width: 5),
-            Text(label, style: Theme.of(context).textTheme.bodySmall),
-          ],
-        ),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainer,
+      borderRadius: BorderRadius.circular(99),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 15),
+        const SizedBox(width: 5),
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
+      ],
+    ),
+  );
 }
 
 class _PlannerPreview extends StatefulWidget {
@@ -323,10 +330,9 @@ class _PlannerPreviewState extends State<_PlannerPreview> {
                 child: Container(
                   padding: const EdgeInsets.all(11),
                   decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primary
-                        .withValues(alpha: .07),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: .07),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Row(
@@ -339,8 +345,10 @@ class _PlannerPreviewState extends State<_PlannerPreview> {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text(text,
-                            style: Theme.of(context).textTheme.bodySmall),
+                        child: Text(
+                          text,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       ),
                     ],
                   ),

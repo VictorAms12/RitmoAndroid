@@ -41,7 +41,10 @@ class ProgressPage extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 110),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              Text('Progresso', style: Theme.of(context).textTheme.headlineMedium),
+              Text(
+                'Progresso',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
               const SizedBox(height: 4),
               Text(
                 'Veja consistência, execução e tempo realmente focado.',
@@ -132,8 +135,9 @@ class ProgressPage extends StatelessWidget {
                       : Column(
                           children: categories.map((entry) {
                             final maxValue = categories.first.value;
-                            final factor =
-                                maxValue == 0 ? 0.0 : entry.value / maxValue;
+                            final factor = maxValue == 0
+                                ? 0.0
+                                : entry.value / maxValue;
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 13),
                               child: Column(
@@ -143,15 +147,16 @@ class ProgressPage extends StatelessWidget {
                                       Expanded(
                                         child: Text(
                                           entry.key,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.titleMedium,
                                         ),
                                       ),
                                       Text(
                                         _duration(entry.value),
-                                        style:
-                                            Theme.of(context).textTheme.bodySmall,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
                                       ),
                                     ],
                                   ),
@@ -181,10 +186,14 @@ class ProgressPage extends StatelessWidget {
                 )
               else
                 ...sessions.take(12).map((session) {
-                  final date = DateTime.fromMillisecondsSinceEpoch(session.startedAt);
-                  final pct = (session.actualMinutes * 100 /
-                          session.plannedMinutes.clamp(1, 100000))
-                      .round();
+                  final date = DateTime.fromMillisecondsSinceEpoch(
+                    session.startedAt,
+                  );
+                  final pct =
+                      (session.actualMinutes *
+                              100 /
+                              session.plannedMinutes.clamp(1, 100000))
+                          .round();
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 9),
                     child: Card(
@@ -212,13 +221,16 @@ class ProgressPage extends StatelessWidget {
                                 children: [
                                   Text(
                                     session.title,
-                                    style:
-                                        Theme.of(context).textTheme.titleMedium,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium,
                                   ),
                                   const SizedBox(height: 3),
                                   Text(
                                     '${DateFormat('dd/MM · HH:mm').format(date)} · ${session.mode}',
-                                    style: Theme.of(context).textTheme.bodySmall,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
                                   ),
                                 ],
                               ),
@@ -228,8 +240,9 @@ class ProgressPage extends StatelessWidget {
                               children: [
                                 Text(
                                   '${session.actualMinutes} min',
-                                  style:
-                                      Theme.of(context).textTheme.titleMedium,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
                                 ),
                                 Text(
                                   '$pct% da meta',

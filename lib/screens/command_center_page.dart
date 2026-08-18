@@ -39,19 +39,21 @@ class _CommandCenterPageState extends State<CommandCenterPage>
     final title = _capture.text.trim();
     if (title.isEmpty) return;
     final id = DateTime.now().microsecondsSinceEpoch;
-    await widget.state.addOrUpdateTask(TaskItem(
-      id: id,
-      title: title,
-      date: '2999-12-31',
-      deadline: '2999-12-31',
-      priority: 'auto',
-      minutes: 30,
-      category: 'Pessoal',
-      flexible: true,
-      inbox: true,
-      energy: 'medium',
-      preferredPeriod: 'any',
-    ));
+    await widget.state.addOrUpdateTask(
+      TaskItem(
+        id: id,
+        title: title,
+        date: '2999-12-31',
+        deadline: '2999-12-31',
+        priority: 'auto',
+        minutes: 30,
+        category: 'Pessoal',
+        flexible: true,
+        inbox: true,
+        energy: 'medium',
+        preferredPeriod: 'any',
+      ),
+    );
     _capture.clear();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -64,9 +66,16 @@ class _CommandCenterPageState extends State<CommandCenterPage>
   }
 
   Future<void> _schedule(TaskItem task, String date) async {
+    final wasInbox = task.inbox;
+    final previousDeadline = task.deadline;
     task.inbox = false;
     task.date = date;
-    task.deadline = date;
+    task.deadline =
+        wasInbox ||
+            !isValidIsoDate(previousDeadline) ||
+            previousDeadline.compareTo(date) < 0
+        ? date
+        : previousDeadline;
     task.time = '';
     await widget.state.addOrUpdateTask(task);
   }
@@ -125,13 +134,25 @@ class _InboxTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final inbox = state.data.tasks.where((e) => e.inbox && e.status != 'done').toList()
-      ..sort((a, b) => b.id.compareTo(a.id));
+    final inbox =
+        state.data.tasks.where((e) => e.inbox && e.status != 'done').toList()
+          ..sort((a, b) => b.id.compareTo(a.id));
     final overdue = state.data.tasks
-        .where((e) => !e.inbox && e.status != 'done' && e.date.compareTo(state.today) < 0)
+        .where(
+          (e) =>
+              !e.inbox &&
+              e.status != 'done' &&
+              e.date.compareTo(state.today) < 0,
+        )
         .toList();
-    final todayPending = state.tasksOn(state.today).where((e) => e.status != 'done').toList();
-    final pendingRoutines = state.routinesOn(state.today).where((e) => !e.doneOn(state.today)).toList();
+    final todayPending = state
+        .tasksOn(state.today)
+        .where((e) => e.status != 'done')
+        .toList();
+    final pendingRoutines = state
+        .routinesOn(state.today)
+        .where((e) => !e.doneOn(state.today))
+        .toList();
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
@@ -193,9 +214,14 @@ class _InboxTab extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Precisa de decisão', style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    'Precisa de decisão',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   const SizedBox(height: 8),
-                  ...overdue.take(3).map(
+                  ...overdue
+                      .take(3)
+                      .map(
                         (task) => ListTile(
                           contentPadding: EdgeInsets.zero,
                           dense: true,
@@ -236,7 +262,8 @@ class _InboxTab extends StatelessWidget {
           const EmptyState(
             icon: Icons.inbox_rounded,
             title: 'Inbox zerada',
-            message: 'Use a captura rápida para registrar algo sem precisar escolher data, prioridade ou projeto.',
+            message:
+                'Use a captura rápida para registrar algo sem precisar escolher data, prioridade ou projeto.',
           )
         else
           ...inbox.map(
@@ -251,20 +278,28 @@ class _InboxTab extends StatelessWidget {
                         width: 38,
                         height: 38,
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primary.withValues(alpha: .10),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: .10),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(Icons.inbox_outlined,
-                            color: Theme.of(context).colorScheme.primary),
+                        child: Icon(
+                          Icons.inbox_outlined,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                       ),
                       const SizedBox(width: 11),
                       Expanded(
                         child: InkWell(
-                          onTap: () => showTaskEditor(context, state, task: task),
+                          onTap: () =>
+                              showTaskEditor(context, state, task: task),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(task.title, style: Theme.of(context).textTheme.titleMedium),
+                              Text(
+                                task.title,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
                               const SizedBox(height: 2),
                               Text(
                                 '${task.minutes} min · ${_priorityLabel(task.effectivePriority(state.today))}',
@@ -277,7 +312,8 @@ class _InboxTab extends StatelessWidget {
                       PopupMenuButton<String>(
                         tooltip: 'Organizar',
                         onSelected: (value) async {
-                          if (value == 'today') await onSchedule(task, state.today);
+                          if (value == 'today')
+                            await onSchedule(task, state.today);
                           if (value == 'tomorrow') {
                             await onSchedule(task, addDaysIso(state.today, 1));
                           }
@@ -287,11 +323,23 @@ class _InboxTab extends StatelessWidget {
                           if (value == 'delete') await state.deleteTask(task);
                         },
                         itemBuilder: (_) => const [
-                          PopupMenuItem(value: 'today', child: Text('Planejar para hoje')),
-                          PopupMenuItem(value: 'tomorrow', child: Text('Planejar para amanhã')),
-                          PopupMenuItem(value: 'edit', child: Text('Editar detalhes')),
+                          PopupMenuItem(
+                            value: 'today',
+                            child: Text('Planejar para hoje'),
+                          ),
+                          PopupMenuItem(
+                            value: 'tomorrow',
+                            child: Text('Planejar para amanhã'),
+                          ),
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Text('Editar detalhes'),
+                          ),
                           PopupMenuDivider(),
-                          PopupMenuItem(value: 'delete', child: Text('Excluir')),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Text('Excluir'),
+                          ),
                         ],
                       ),
                     ],
@@ -326,23 +374,34 @@ class _SearchTab extends StatelessWidget {
         ? <TaskItem>[]
         : state.data.tasks.where((e) {
             final project = projectTitles[e.projectId] ?? 'Sem projeto';
-            return '${e.title} ${e.description} ${e.category} $project'.toLowerCase().contains(q);
+            return '${e.title} ${e.description} ${e.category} $project'
+                .toLowerCase()
+                .contains(q);
           }).toList();
     final routines = q.isEmpty
         ? <RoutineItem>[]
         : state.data.routines
-            .where((e) => '${e.title} ${e.detail} ${e.category}'.toLowerCase().contains(q))
-            .toList();
+              .where(
+                (e) => '${e.title} ${e.detail} ${e.category}'
+                    .toLowerCase()
+                    .contains(q),
+              )
+              .toList();
     final projects = q.isEmpty
         ? <ProjectItem>[]
         : state.data.projects
-            .where((e) => '${e.title} ${e.description}'.toLowerCase().contains(q))
-            .toList();
+              .where(
+                (e) => '${e.title} ${e.description}'.toLowerCase().contains(q),
+              )
+              .toList();
     final goals = q.isEmpty
         ? <GoalItem>[]
-        : state.data.goals.where((e) => e.title.toLowerCase().contains(q)).toList();
+        : state.data.goals
+              .where((e) => e.title.toLowerCase().contains(q))
+              .toList();
 
-    final total = tasks.length + routines.length + projects.length + goals.length;
+    final total =
+        tasks.length + routines.length + projects.length + goals.length;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
@@ -379,35 +438,47 @@ class _SearchTab extends StatelessWidget {
             message: 'Não encontrei resultados para “$query”.',
           )
         else ...[
-          Text('$total resultado${total == 1 ? '' : 's'}',
-              style: Theme.of(context).textTheme.bodySmall),
+          Text(
+            '$total resultado${total == 1 ? '' : 's'}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
           const SizedBox(height: 8),
-          ...tasks.map((task) => _SearchTile(
-                icon: task.inbox ? Icons.inbox_outlined : Icons.task_alt_rounded,
-                title: task.title,
-                subtitle: task.inbox
-                    ? 'Inbox · ${task.minutes} min'
-                    : '${_dateLabel(task.date)}${task.time.isEmpty ? '' : ' · ${task.time}'} · ${task.category}',
-                onTap: () => showTaskEditor(context, state, task: task),
-              )),
-          ...routines.map((routine) => _SearchTile(
-                icon: Icons.repeat_rounded,
-                title: routine.title,
-                subtitle: 'Hábito · ${routine.category}${routine.time.isEmpty ? '' : ' · ${routine.time}'}',
-                onTap: () => showRoutineEditor(context, state, routine: routine),
-              )),
-          ...projects.map((project) => _SearchTile(
-                icon: Icons.folder_outlined,
-                title: project.title,
-                subtitle: 'Projeto · ${state.projectProgress(project)}% concluído',
-                onTap: () => showProjectEditor(context, state, project: project),
-              )),
-          ...goals.map((goal) => _SearchTile(
-                icon: Icons.flag_outlined,
-                title: goal.title,
-                subtitle: 'Meta · ${goal.progress}%',
-                onTap: () => showGoalEditor(context, state, goal: goal),
-              )),
+          ...tasks.map(
+            (task) => _SearchTile(
+              icon: task.inbox ? Icons.inbox_outlined : Icons.task_alt_rounded,
+              title: task.title,
+              subtitle: task.inbox
+                  ? 'Inbox · ${task.minutes} min'
+                  : '${_dateLabel(task.date)}${task.time.isEmpty ? '' : ' · ${task.time}'} · ${task.category}',
+              onTap: () => showTaskEditor(context, state, task: task),
+            ),
+          ),
+          ...routines.map(
+            (routine) => _SearchTile(
+              icon: Icons.repeat_rounded,
+              title: routine.title,
+              subtitle:
+                  'Hábito · ${routine.category}${routine.time.isEmpty ? '' : ' · ${routine.time}'}',
+              onTap: () => showRoutineEditor(context, state, routine: routine),
+            ),
+          ),
+          ...projects.map(
+            (project) => _SearchTile(
+              icon: Icons.folder_outlined,
+              title: project.title,
+              subtitle:
+                  'Projeto · ${state.projectProgress(project)}% concluído',
+              onTap: () => showProjectEditor(context, state, project: project),
+            ),
+          ),
+          ...goals.map(
+            (goal) => _SearchTile(
+              icon: Icons.flag_outlined,
+              title: goal.title,
+              subtitle: 'Meta · ${goal.progress}%',
+              onTap: () => showGoalEditor(context, state, goal: goal),
+            ),
+          ),
         ],
       ],
     );
@@ -423,26 +494,34 @@ class _TimelineTab extends StatelessWidget {
     final items = <_TimelineItem>[];
     for (final task in state.tasksOn(state.today)) {
       if (task.inbox) continue;
-      items.add(_TimelineItem(
-        time: task.time,
-        title: task.title,
-        detail: task.status == 'done'
-            ? 'Concluída · ${task.minutes} min'
-            : '${task.category} · ${task.minutes} min',
-        icon: task.status == 'done' ? Icons.check_rounded : Icons.task_alt_rounded,
-        done: task.status == 'done',
-        onTap: () => showTaskEditor(context, state, task: task),
-      ));
+      items.add(
+        _TimelineItem(
+          time: task.time,
+          title: task.title,
+          detail: task.status == 'done'
+              ? 'Concluída · ${task.minutes} min'
+              : '${task.category} · ${task.minutes} min',
+          icon: task.status == 'done'
+              ? Icons.check_rounded
+              : Icons.task_alt_rounded,
+          done: task.status == 'done',
+          onTap: () => showTaskEditor(context, state, task: task),
+        ),
+      );
     }
     for (final routine in state.routinesOn(state.today)) {
-      items.add(_TimelineItem(
-        time: routine.time,
-        title: routine.title,
-        detail: routine.doneOn(state.today) ? 'Hábito concluído' : 'Hábito pendente · ${routine.minutes} min',
-        icon: Icons.repeat_rounded,
-        done: routine.doneOn(state.today),
-        onTap: () => showRoutineEditor(context, state, routine: routine),
-      ));
+      items.add(
+        _TimelineItem(
+          time: routine.time,
+          title: routine.title,
+          detail: routine.doneOn(state.today)
+              ? 'Hábito concluído'
+              : 'Hábito pendente · ${routine.minutes} min',
+          icon: Icons.repeat_rounded,
+          done: routine.doneOn(state.today),
+          onTap: () => showRoutineEditor(context, state, routine: routine),
+        ),
+      );
     }
     items.sort((a, b) {
       if (a.time.isEmpty && b.time.isNotEmpty) return 1;
@@ -453,20 +532,27 @@ class _TimelineTab extends StatelessWidget {
     final now = TimeOfDay.now();
     final nowMinutes = now.hour * 60 + now.minute;
     final next = items
-        .where((e) =>
-            !e.done &&
-            e.time.isNotEmpty &&
-            _timeMinutes(e.time) >= nowMinutes)
+        .where(
+          (e) =>
+              !e.done &&
+              e.time.isNotEmpty &&
+              _timeMinutes(e.time) >= nowMinutes,
+        )
         .cast<_TimelineItem?>()
         .firstOrNull;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       children: [
-        Text('Linha do tempo de hoje', style: Theme.of(context).textTheme.headlineMedium),
+        Text(
+          'Linha do tempo de hoje',
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
         const SizedBox(height: 4),
         Text(
-          next == null ? 'Sem próximo horário definido.' : 'Próxima ação: ${next.title} · ${next.time}',
+          next == null
+              ? 'Sem próximo horário definido.'
+              : 'Próxima ação: ${next.title} · ${next.time}',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 18),
@@ -500,22 +586,22 @@ class _AttentionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: tone.withValues(alpha: .08),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: tone.withValues(alpha: .14)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 18, color: tone),
-            const SizedBox(height: 8),
-            Text(value, style: Theme.of(context).textTheme.titleLarge),
-            Text(label, style: Theme.of(context).textTheme.bodySmall),
-          ],
-        ),
-      );
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: tone.withValues(alpha: .08),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: tone.withValues(alpha: .14)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: tone),
+        const SizedBox(height: 8),
+        Text(value, style: Theme.of(context).textTheme.titleLarge),
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
+      ],
+    ),
+  );
 }
 
 class _SearchTile extends StatelessWidget {
@@ -532,15 +618,15 @@ class _SearchTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-        margin: const EdgeInsets.only(bottom: 8),
-        child: ListTile(
-          leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
-          title: Text(title),
-          subtitle: Text(subtitle),
-          trailing: const Icon(Icons.chevron_right_rounded),
-          onTap: onTap,
-        ),
-      );
+    margin: const EdgeInsets.only(bottom: 8),
+    child: ListTile(
+      leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.chevron_right_rounded),
+      onTap: onTap,
+    ),
+  );
 }
 
 class _TimelineItem {
@@ -577,7 +663,9 @@ class _TimelineTile extends StatelessWidget {
             width: 52,
             child: Text(
               item.time.isEmpty ? '—' : item.time,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w800),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w800),
             ),
           ),
           SizedBox(
@@ -643,10 +731,10 @@ String _dateLabel(String iso) {
 }
 
 String _priorityLabel(String value) => switch (value) {
-      'high' => 'prioridade alta',
-      'medium' => 'prioridade média',
-      _ => 'prioridade baixa',
-    };
+  'high' => 'prioridade alta',
+  'medium' => 'prioridade média',
+  _ => 'prioridade baixa',
+};
 
 extension _FirstOrNull<E> on Iterable<E> {
   E? get firstOrNull => isEmpty ? null : first;

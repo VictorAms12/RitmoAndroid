@@ -32,28 +32,29 @@ class RitmoColors {
 }
 
 ThemeData buildLightTheme() {
-  final scheme = ColorScheme.fromSeed(
-    seedColor: RitmoColors.seed,
-    brightness: Brightness.light,
-    surface: RitmoColors.lightSurface,
-  ).copyWith(
-    primary: RitmoColors.primaryLight,
-    onPrimary: Colors.white,
-    primaryContainer: const Color(0xFFE8EAFF),
-    onPrimaryContainer: const Color(0xFF252A70),
-    secondary: const Color(0xFF7258D9),
-    onSecondary: Colors.white,
-    secondaryContainer: const Color(0xFFEEE9FF),
-    onSecondaryContainer: const Color(0xFF302064),
-    tertiary: RitmoColors.amber,
-    error: const Color(0xFFD94F5C),
-    surface: RitmoColors.lightSurface,
-    surfaceContainerLow: RitmoColors.lightSurface,
-    surfaceContainer: RitmoColors.lightSurfaceAlt,
-    surfaceContainerHigh: RitmoColors.lightSurfaceHigh,
-    outline: const Color(0xFFD3D7DE),
-    outlineVariant: const Color(0xFFE5E8ED),
-  );
+  final scheme =
+      ColorScheme.fromSeed(
+        seedColor: RitmoColors.seed,
+        brightness: Brightness.light,
+        surface: RitmoColors.lightSurface,
+      ).copyWith(
+        primary: RitmoColors.primaryLight,
+        onPrimary: Colors.white,
+        primaryContainer: const Color(0xFFE8EAFF),
+        onPrimaryContainer: const Color(0xFF252A70),
+        secondary: const Color(0xFF7258D9),
+        onSecondary: Colors.white,
+        secondaryContainer: const Color(0xFFEEE9FF),
+        onSecondaryContainer: const Color(0xFF302064),
+        tertiary: RitmoColors.amber,
+        error: const Color(0xFFD94F5C),
+        surface: RitmoColors.lightSurface,
+        surfaceContainerLow: RitmoColors.lightSurface,
+        surfaceContainer: RitmoColors.lightSurfaceAlt,
+        surfaceContainerHigh: RitmoColors.lightSurfaceHigh,
+        outline: const Color(0xFFD3D7DE),
+        outlineVariant: const Color(0xFFE5E8ED),
+      );
   return _baseTheme(
     scheme: scheme,
     scaffold: RitmoColors.lightBg,
@@ -65,30 +66,31 @@ ThemeData buildLightTheme() {
 }
 
 ThemeData buildDarkTheme() {
-  final scheme = ColorScheme.fromSeed(
-    seedColor: RitmoColors.seed,
-    brightness: Brightness.dark,
-    surface: RitmoColors.darkSurface,
-  ).copyWith(
-    primary: RitmoColors.primaryDark,
-    onPrimary: const Color(0xFF11142F),
-    primaryContainer: const Color(0xFF30366B),
-    onPrimaryContainer: const Color(0xFFE8EAFF),
-    secondary: const Color(0xFFB6A6FF),
-    onSecondary: const Color(0xFF251D49),
-    secondaryContainer: const Color(0xFF372E61),
-    onSecondaryContainer: const Color(0xFFF0EBFF),
-    tertiary: const Color(0xFFF4C15D),
-    error: RitmoColors.danger,
-    surface: RitmoColors.darkSurface,
-    surfaceContainerLowest: RitmoColors.darkBg,
-    surfaceContainerLow: RitmoColors.darkSurface,
-    surfaceContainer: RitmoColors.darkSurfaceAlt,
-    surfaceContainerHigh: RitmoColors.darkSurfaceHigh,
-    surfaceContainerHighest: const Color(0xFF2D323B),
-    outline: const Color(0xFF454A54),
-    outlineVariant: const Color(0xFF2E3239),
-  );
+  final scheme =
+      ColorScheme.fromSeed(
+        seedColor: RitmoColors.seed,
+        brightness: Brightness.dark,
+        surface: RitmoColors.darkSurface,
+      ).copyWith(
+        primary: RitmoColors.primaryDark,
+        onPrimary: const Color(0xFF11142F),
+        primaryContainer: const Color(0xFF30366B),
+        onPrimaryContainer: const Color(0xFFE8EAFF),
+        secondary: const Color(0xFFB6A6FF),
+        onSecondary: const Color(0xFF251D49),
+        secondaryContainer: const Color(0xFF372E61),
+        onSecondaryContainer: const Color(0xFFF0EBFF),
+        tertiary: const Color(0xFFF4C15D),
+        error: RitmoColors.danger,
+        surface: RitmoColors.darkSurface,
+        surfaceContainerLowest: RitmoColors.darkBg,
+        surfaceContainerLow: RitmoColors.darkSurface,
+        surfaceContainer: RitmoColors.darkSurfaceAlt,
+        surfaceContainerHigh: RitmoColors.darkSurfaceHigh,
+        surfaceContainerHighest: const Color(0xFF2D323B),
+        outline: const Color(0xFF454A54),
+        outlineVariant: const Color(0xFF2E3239),
+      );
   return _baseTheme(
     scheme: scheme,
     scaffold: RitmoColors.darkBg,
@@ -150,11 +152,7 @@ ThemeData _baseTheme({
       ),
       bodyLarge: TextStyle(fontSize: 15, height: 1.45, color: text),
       bodyMedium: TextStyle(fontSize: 13, height: 1.4, color: text),
-      bodySmall: TextStyle(
-        fontSize: 11.5,
-        height: 1.35,
-        color: muted,
-      ),
+      bodySmall: TextStyle(fontSize: 11.5, height: 1.35, color: muted),
       labelLarge: TextStyle(fontWeight: FontWeight.w800, color: text),
     ),
     iconTheme: IconThemeData(
@@ -180,7 +178,9 @@ ThemeData _baseTheme({
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: dark ? RitmoColors.darkSurfaceAlt : RitmoColors.lightSurfaceAlt,
+      fillColor: dark
+          ? RitmoColors.darkSurfaceAlt
+          : RitmoColors.lightSurfaceAlt,
       hintStyle: TextStyle(color: muted.withValues(alpha: .86)),
       labelStyle: TextStyle(color: muted),
       border: OutlineInputBorder(
@@ -202,8 +202,9 @@ ThemeData _baseTheme({
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
     ),
     chipTheme: base.chipTheme.copyWith(
-      backgroundColor:
-          dark ? RitmoColors.darkSurfaceAlt : RitmoColors.lightSurfaceAlt,
+      backgroundColor: dark
+          ? RitmoColors.darkSurfaceAlt
+          : RitmoColors.lightSurfaceAlt,
       selectedColor: scheme.primary.withValues(alpha: dark ? .22 : .12),
       checkmarkColor: scheme.primary,
       labelStyle: TextStyle(color: text, fontWeight: FontWeight.w600),
@@ -246,7 +247,9 @@ ThemeData _baseTheme({
       backgroundColor: nav,
       surfaceTintColor: Colors.transparent,
       indicatorColor: scheme.primary.withValues(alpha: dark ? .18 : .11),
-      indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      indicatorShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
       iconTheme: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return IconThemeData(
@@ -284,8 +287,9 @@ ThemeData _baseTheme({
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       elevation: 3,
-      backgroundColor:
-          dark ? RitmoColors.darkSurfaceHigh : const Color(0xFF252830),
+      backgroundColor: dark
+          ? RitmoColors.darkSurfaceHigh
+          : const Color(0xFF252830),
       contentTextStyle: const TextStyle(
         color: Color(0xFFF8F9FB),
         fontWeight: FontWeight.w600,
@@ -315,15 +319,15 @@ ThemeData _baseTheme({
         return states.contains(WidgetState.selected)
             ? scheme.onPrimary
             : dark
-                ? const Color(0xFFC7CBD2)
-                : Colors.white;
+            ? const Color(0xFFC7CBD2)
+            : Colors.white;
       }),
       trackColor: WidgetStateProperty.resolveWith((states) {
         return states.contains(WidgetState.selected)
             ? scheme.primary
             : dark
-                ? const Color(0xFF3A3E46)
-                : const Color(0xFFCDD2DA);
+            ? const Color(0xFF3A3E46)
+            : const Color(0xFFCDD2DA);
       }),
       trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
     ),
