@@ -45,8 +45,22 @@ public class Store {
     }
 
     public static Date parse(String iso) {
-        try { return new SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(iso); }
-        catch (Exception e) { return new Date(); }
+        try {
+            SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+            parser.setLenient(false);
+            Date parsed = parser.parse(iso);
+            return parsed == null ? new Date() : parsed;
+        } catch (Exception e) { return new Date(); }
+    }
+
+    public static boolean isValidIsoDate(String iso) {
+        if (iso == null || !iso.matches("\\d{4}-\\d{2}-\\d{2}")) return false;
+        try {
+            SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+            parser.setLenient(false);
+            Date parsed = parser.parse(iso);
+            return parsed != null && iso.equals(parser.format(parsed));
+        } catch (Exception e) { return false; }
     }
 
     public static String addDays(String iso, int days) {
@@ -108,13 +122,13 @@ public class Store {
         for (Task t : tasks) {
             if (t.title == null || t.title.trim().isEmpty()) t.title = "Tarefa";
             if (t.description == null) t.description = "";
-            if (t.date == null || t.date.length() != 10) t.date = today();
+            if (!isValidIsoDate(t.date)) t.date = today();
             if (t.time == null) t.time = "";
             if (!"auto".equals(t.priority) && !"high".equals(t.priority) && !"medium".equals(t.priority) && !"low".equals(t.priority)) t.priority = "low";
             if (t.category == null || t.category.trim().isEmpty()) t.category = "Pessoal";
             if (!"todo".equals(t.status) && !"doing".equals(t.status) && !"done".equals(t.status)) t.status = "todo";
             if (!"none".equals(t.recurrence) && !"daily".equals(t.recurrence) && !"weekdays".equals(t.recurrence) && !"weekly".equals(t.recurrence) && !"monthly".equals(t.recurrence)) t.recurrence = "none";
-            if (t.deadline == null || t.deadline.length() != 10) t.deadline = t.date;
+            if (!isValidIsoDate(t.deadline) || t.deadline.compareTo(t.date) < 0) t.deadline = t.date;
             t.minutes = Math.max(0, Math.min(1440, t.minutes));
             if (!"low".equals(t.energy) && !"medium".equals(t.energy) && !"high".equals(t.energy)) t.energy = "medium";
             if (!"any".equals(t.preferredPeriod) && !"morning".equals(t.preferredPeriod) && !"afternoon".equals(t.preferredPeriod) && !"evening".equals(t.preferredPeriod)) t.preferredPeriod = "any";
@@ -130,7 +144,7 @@ public class Store {
             if (r.title == null || r.title.trim().isEmpty()) r.title = "Hábito";
             if (r.detail == null) r.detail = "";
             if (!"daily".equals(r.frequency) && !"weekdays".equals(r.frequency) && !"weekly".equals(r.frequency) && !"custom".equals(r.frequency)) r.frequency = "daily";
-            if (r.startDate == null || r.startDate.length() != 10) r.startDate = today();
+            if (!isValidIsoDate(r.startDate)) r.startDate = today();
             if (r.time == null) r.time = "";
             if (r.category == null || r.category.trim().isEmpty()) r.category = "Pessoal";
             if (r.accent == null || r.accent.trim().isEmpty()) r.accent = "indigo";
@@ -231,7 +245,7 @@ public class Store {
             if (task.date.compareTo(today) >= 0) continue;
             String next = task.date; int guard = 0;
             do { next = nextOccurrence(next, task.recurrence); guard++; }
-            while (next.compareTo(today) < 0 && guard < 370);
+            while (next.compareTo(today) < 0 && guard < 10000);
             task.date = next; task.deadline = next; task.status = "todo"; changed = true;
         }
         if (changed) save();
@@ -648,7 +662,7 @@ public class Store {
         public int streak(String referenceDate) {
             String cursor = referenceDate; if (dueOn(cursor) && !doneOn(cursor)) cursor = addDays(cursor, -1);
             int streak = 0, guard = 0;
-            while (guard < 370) {
+            while (guard < 10000) {
                 if (!dueOn(cursor)) { cursor = addDays(cursor, -1); guard++; continue; }
                 if (!doneOn(cursor)) break;
                 streak++; cursor = addDays(cursor, -1); guard++;

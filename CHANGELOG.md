@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.4.2
+
+### Confiabilidade
+- Persistência do Modo Foco também no Windows, permitindo recuperar uma sessão após reiniciar o aplicativo.
+- Validação mais rígida de datas e metadados locais antes de cálculos, agenda e planejamento.
+- Histórico recente de foco do Smart Planner ordenado cronologicamente antes das estimativas.
+- Recorrências e streaks antigos suportam períodos significativamente maiores.
+
+### Interface
+- Dias que possuem somente hábitos agora aparecem corretamente como ocupados no calendário.
+- Alternância rápida de tema respeita a aparência efetivamente exibida quando o modo Sistema está ativo.
+- A opção Reduzir animações também desativa as microanimações da navegação inferior.
+
+### Qualidade
+- Novos testes de regressão para datas e histórico do Smart Planner.
+- Android e Windows validados por análise estática, testes e builds automatizados.
+
 ## 3.4.1 — Stability & Performance Polish
 
 ### Correções

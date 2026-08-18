@@ -244,6 +244,7 @@ class _RitmoShellState extends State<RitmoShell> {
               bottomNavigationBar: _RitmoBottomBar(
                 index: _index,
                 onSelected: _select,
+                reduceMotion: state.reduceMotion,
               ),
             ),
     );
@@ -253,7 +254,12 @@ class _RitmoShellState extends State<RitmoShell> {
 class _RitmoBottomBar extends StatelessWidget {
   final int index;
   final ValueChanged<int> onSelected;
-  const _RitmoBottomBar({required this.index, required this.onSelected});
+  final bool reduceMotion;
+  const _RitmoBottomBar({
+    required this.index,
+    required this.onSelected,
+    required this.reduceMotion,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -275,6 +281,7 @@ class _RitmoBottomBar extends StatelessWidget {
               activeIcon: Icons.home_rounded,
               label: 'Hoje',
               onTap: () => onSelected(0),
+              reduceMotion: reduceMotion,
             ),
           ),
           Expanded(
@@ -284,6 +291,7 @@ class _RitmoBottomBar extends StatelessWidget {
               activeIcon: Icons.calendar_month_rounded,
               label: 'Agenda',
               onTap: () => onSelected(1),
+              reduceMotion: reduceMotion,
             ),
           ),
           const SizedBox(width: 64),
@@ -294,6 +302,7 @@ class _RitmoBottomBar extends StatelessWidget {
               activeIcon: Icons.insights_rounded,
               label: 'Progresso',
               onTap: () => onSelected(2),
+              reduceMotion: reduceMotion,
             ),
           ),
           Expanded(
@@ -303,6 +312,7 @@ class _RitmoBottomBar extends StatelessWidget {
               activeIcon: Icons.tune_rounded,
               label: 'Ajustes',
               onTap: () => onSelected(3),
+              reduceMotion: reduceMotion,
             ),
           ),
         ],
@@ -317,12 +327,14 @@ class _NavButton extends StatelessWidget {
   final IconData activeIcon;
   final String label;
   final VoidCallback onTap;
+  final bool reduceMotion;
   const _NavButton({
     required this.selected,
     required this.icon,
     required this.activeIcon,
     required this.label,
     required this.onTap,
+    required this.reduceMotion,
   });
 
   @override
@@ -334,14 +346,14 @@ class _NavButton extends StatelessWidget {
       onTap: onTap,
       radius: 32,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
+        duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 220),
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             AnimatedScale(
               scale: selected ? 1.08 : 1,
-              duration: const Duration(milliseconds: 220),
+              duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 220),
               child: Icon(selected ? activeIcon : icon, color: color, size: 23),
             ),
             const SizedBox(height: 3),

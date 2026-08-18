@@ -47,4 +47,13 @@ void main() {
     expect(restored.preferredPeriod, 'morning');
     expect(restored.subtasks.single.done, isTrue);
   });
+
+
+  test('validates ISO dates strictly', () {
+    expect(isValidIsoDate('2026-08-18'), isTrue);
+    expect(isValidIsoDate('2026-02-30'), isFalse);
+    expect(isValidIsoDate('2026-8-18'), isFalse);
+    expect(isValidIsoDate('not-a-date'), isFalse);
+    expect(isValidIsoDate(null), isFalse);
+  });
 }

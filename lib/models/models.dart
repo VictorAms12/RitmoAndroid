@@ -11,6 +11,15 @@ DateTime parseIso(String? value) {
 String addDaysIso(String iso, int days) =>
     isoDate(parseIso(iso).add(Duration(days: days)));
 
+bool isValidIsoDate(String? value) {
+  if (value == null ||
+      !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value)) {
+    return false;
+  }
+  final parsed = DateTime.tryParse(value);
+  return parsed != null && isoDate(parsed) == value;
+}
+
 int daysBetween(String from, String to) =>
     parseIso(to).difference(parseIso(from)).inDays;
 
@@ -207,7 +216,7 @@ class RoutineItem {
     var cursor = referenceDate;
     if (dueOn(cursor) && !doneOn(cursor)) cursor = addDaysIso(cursor, -1);
     var value = 0;
-    for (var guard = 0; guard < 370; guard++) {
+    for (var guard = 0; guard < 10000; guard++) {
       if (!dueOn(cursor)) {
         cursor = addDaysIso(cursor, -1);
         continue;

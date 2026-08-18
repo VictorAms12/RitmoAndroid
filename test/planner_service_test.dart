@@ -39,6 +39,7 @@ void main() {
         horizonDays: 2,
       ),
       fromDate: '2026-08-18',
+      now: DateTime(2026, 8, 18, 7),
     );
 
     expect(result.assignments.map((e) => e.taskId), contains(3));
@@ -75,7 +76,48 @@ void main() {
       data,
       const PlannerSettings(horizonDays: 1),
       fromDate: '2026-08-18',
+      now: DateTime(2026, 8, 18, 7),
     );
     expect(result.assignments.single.estimatedMinutes, greaterThan(30));
+  });
+
+
+  test('uses the five newest focus sessions even when history is unordered', () {
+    final task = TaskItem(
+      id: 42,
+      title: 'Histórico',
+      date: '2026-08-18',
+      deadline: '2026-08-18',
+      flexible: true,
+      minutes: 30,
+    );
+    final sessions = <FocusSession>[
+      for (final started in [100, 90, 80, 70, 60])
+        FocusSession(
+          id: started,
+          taskId: 42,
+          title: 'Histórico',
+          date: '2026-08-18',
+          plannedMinutes: 30,
+          actualMinutes: 20,
+          startedAt: started,
+        ),
+      FocusSession(
+        id: 1,
+        taskId: 42,
+        title: 'Histórico antigo',
+        date: '2026-08-01',
+        plannedMinutes: 30,
+        actualMinutes: 100,
+        startedAt: 1,
+      ),
+    ];
+    final result = PlannerService.plan(
+      RitmoData(tasks: [task], focusSessions: sessions),
+      const PlannerSettings(horizonDays: 1),
+      fromDate: '2026-08-18',
+      now: DateTime(2026, 8, 18, 7),
+    );
+    expect(result.assignments.single.estimatedMinutes, 26);
   });
 }

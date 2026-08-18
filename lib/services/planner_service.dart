@@ -423,7 +423,8 @@ class PlannerService {
 
   static Map<int, double> _recentFocusAverages(List<FocusSession> sessions) {
     final recent = <int, List<int>>{};
-    for (final session in sessions) {
+    final ordered = [...sessions]..sort((a, b) => a.startedAt.compareTo(b.startedAt));
+    for (final session in ordered) {
       if (session.taskId == 0 || session.actualMinutes <= 0) continue;
       final values = recent.putIfAbsent(session.taskId, () => <int>[]);
       values.add(session.actualMinutes);

@@ -1,7 +1,7 @@
 name: ritmo
 description: Ritmo - gestão de rotina, hábitos, foco e planejamento.
 publish_to: "none"
-version: 3.4.1+13
+version: 3.4.2+14
 
 environment:
   sdk: ">=3.10.0 <4.0.0"

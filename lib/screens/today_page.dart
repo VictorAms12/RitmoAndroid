@@ -217,7 +217,7 @@ class _TodayPageState extends State<TodayPage> {
                         IconButton.filledTonal(
                           tooltip: 'Alternar tema',
                           onPressed: () {
-                            final next = state.themeMode == RitmoThemeMode.dark
+                            final next = Theme.of(context).brightness == Brightness.dark
                                 ? RitmoThemeMode.light
                                 : RitmoThemeMode.dark;
                             state.setTheme(next);

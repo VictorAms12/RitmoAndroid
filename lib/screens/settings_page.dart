@@ -291,7 +291,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.flutter_dash_rounded),
-              title: const Text('Ritmo 3.4.1'),
+              title: const Text('Ritmo 3.4.2'),
               subtitle: const Text(
                 'Android + Windows · Inbox, busca global, timeline e Smart Planner 2.0 · dados locais.',
               ),

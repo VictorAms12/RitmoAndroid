@@ -364,7 +364,7 @@ class _MonthGrid extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (count > 0 || score > 0)
+                  if (count > 0 || routineCount > 0)
                     Positioned(
                       left: 0,
                       right: 0,
