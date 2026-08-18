@@ -218,7 +218,9 @@ class _FocusSetup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final openTasks = state.data.tasks.where((e) => e.status != 'done').toList()
+    final openTasks = state.data.tasks
+        .where((e) => !e.inbox && e.status != 'done')
+        .toList()
       ..sort((a, b) => a.date.compareTo(b.date));
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
