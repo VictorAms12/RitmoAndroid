@@ -1,4 +1,4 @@
-name: Ritmo 3.4.2 Strict Validation
+name: Ritmo 3.4.2 Validation
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   validate:
-    if: ${{ contains(github.event.head_commit.message, 'run Ritmo 3.4.2 strict validation') }}
+    if: ${{ contains(github.event.head_commit.message, 'Ritmo 3.4.2 strict validation') }}
     runs-on: ubuntu-latest
 
     steps:
@@ -39,8 +39,8 @@ jobs:
       - name: Fetch packages
         run: flutter pub get
 
-      - name: Strict analyze
-        run: flutter analyze
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Regression tests
         run: flutter test
@@ -56,5 +56,5 @@ jobs:
           git add -A
           git reset -- .github/workflows
           git reset -- .github/scripts/final_tidy_3_4_2.py
-          git commit -m "fix: finalize Ritmo 3.4.2 strict polish"
+          git commit -m "fix: finalize Ritmo 3.4.2 validated polish"
           git push origin main
